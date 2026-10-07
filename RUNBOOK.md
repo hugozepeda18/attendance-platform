@@ -58,6 +58,7 @@ npm run build
 ```
 
 ## 5. Simulating a Scanner Event (Curl Test)
+Scans are only accepted until the school's window closes (`schoolStartTime + absenceCutoffMinutes`, 08:30 for the seed); later scans return `422 OUTSIDE_WINDOW`. To try scans at other hours, set the school's start time to a few minutes ago in the admin dashboard (http://admin.localhost:5173) and set it back afterwards.
 The dev seed creates two schools that share badge IDs:
 
 | School | Web page (dev) | Users (password `dev-password-123`) | Device keys |

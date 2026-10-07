@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import { schoolIdOf } from '../middleware/auth';
-import { processScan, StudentNotFoundError, AlreadyScannedError } from '../services/attendance.service';
+import { processScan, StudentNotFoundError, AlreadyScannedError, OutsideWindowError } from '../services/attendance.service';
 
 const ScanSchema = z.object({
   credentialUid: z.string().min(1, 'credentialUid is required'),
@@ -27,6 +27,8 @@ export async function scan(req: Request, res: Response): Promise<void> {
       res.status(404).json({ error: 'STUDENT_NOT_FOUND', message: err.message });
     } else if (err instanceof AlreadyScannedError) {
       res.status(409).json({ error: 'ALREADY_SCANNED', message: 'Attendance already recorded for today' });
+    } else if (err instanceof OutsideWindowError) {
+      res.status(422).json({ error: 'OUTSIDE_WINDOW', message: 'Attendance window closed for today; student must go to the office' });
     } else {
       console.error('[scan]', err);
       res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Internal server error' });

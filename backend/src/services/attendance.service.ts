@@ -3,7 +3,11 @@ import { ScanResult } from '../types/attendance.types';
 import { NotifierService, notifier } from './notifier';
 import { getSchoolConfig } from '../repositories/schoolConfig.repository';
 import { findStudentByCredentialUid, findStudentsWithoutRecordForDate } from '../repositories/student.repository';
-import { findRecordByStudentAndDate, createAttendanceRecord } from '../repositories/attendance.repository';
+import {
+  findRecordByStudentAndDate,
+  createAttendanceRecord,
+  updateAttendanceRecord,
+} from '../repositories/attendance.repository';
 
 export class StudentNotFoundError extends Error {
   constructor() {
@@ -19,12 +23,24 @@ export class AlreadyScannedError extends Error {
   }
 }
 
+// Scan after the safe-time window: the student is (or is about to be) ABSENT and the guardian
+// notified. Nothing is saved; the gate sends the student to the office (decision C, 2026-10-07).
+export class OutsideWindowError extends Error {
+  constructor() {
+    super('The attendance window is closed for today');
+    this.name = 'OutsideWindowError';
+  }
+}
+
+// start..start+grace → PRESENT; until start+absenceCutoff → TARDY; from the cutoff on → OUTSIDE_WINDOW
+// (the absence run fires at exactly start+absenceCutoff).
 export function evaluateStatus(
   scanTime: Date,
   schoolStartTime: string,
   tardyGraceMinutes: number,
+  absenceCutoffMinutes: number,
   timezone: string,
-): 'PRESENT' | 'TARDY' {
+): 'PRESENT' | 'TARDY' | 'OUTSIDE_WINDOW' {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: timezone,
     hour: '2-digit',
@@ -37,9 +53,10 @@ export function evaluateStatus(
   const scanMinutes = hour * 60 + minute;
 
   const [startHour, startMinute] = schoolStartTime.split(':').map(Number);
-  const cutoffMinutes = startHour * 60 + startMinute + tardyGraceMinutes;
+  const start = startHour * 60 + startMinute;
 
-  return scanMinutes <= cutoffMinutes ? 'PRESENT' : 'TARDY';
+  if (scanMinutes >= start + absenceCutoffMinutes) return 'OUTSIDE_WINDOW';
+  return scanMinutes <= start + tardyGraceMinutes ? 'PRESENT' : 'TARDY';
 }
 
 export function getDateInTimezone(timezone: string, refDate?: Date): Date {
@@ -68,25 +85,49 @@ export async function processScan(
   }
 
   const now = new Date();
-  const status = evaluateStatus(now, config.schoolStartTime, config.tardyGraceMinutes, config.timezone);
+  const status = evaluateStatus(
+    now,
+    config.schoolStartTime,
+    config.tardyGraceMinutes,
+    config.absenceCutoffMinutes,
+    config.timezone,
+  );
+  if (status === 'OUTSIDE_WINDOW') throw new OutsideWindowError();
 
-  await createAttendanceRecord({
-    studentId: student.id,
-    date: today,
-    scanTimestamp: now,
-    status,
-    updatedByRole: UpdatedByRole.SCANNER,
-  });
+  if (existing) {
+    // Excused (or manually marked absent) earlier today but arrived inside the window:
+    // the real arrival wins. The excuse note is kept for the principal.
+    await updateAttendanceRecord(existing.id, {
+      status,
+      scanTimestamp: now,
+      updatedByRole: UpdatedByRole.SCANNER,
+      updatedByUserId: null,
+    });
+  } else {
+    await createAttendanceRecord({
+      studentId: student.id,
+      date: today,
+      scanTimestamp: now,
+      status,
+      updatedByRole: UpdatedByRole.SCANNER,
+    });
+  }
 
   const studentName = `${student.firstName} ${student.lastName}`;
 
-  await notifierService.sendScanAlert({
-    guardianWhatsApp: student.guardianWhatsApp,
-    guardianName: student.guardianName,
-    studentName,
-    status,
-    timestamp: now,
-  });
+  // Attendance is already saved: a notification failure must not fail the gate (a retry would get 409).
+  // ponytail: failed messages are only logged; Phase 15 moves sending to an outbox with retries.
+  try {
+    await notifierService.sendScanAlert({
+      guardianWhatsApp: student.guardianWhatsApp,
+      guardianName: student.guardianName,
+      studentName,
+      status,
+      timestamp: now,
+    });
+  } catch (err) {
+    console.error(`[processScan] notification failed for student ${student.id}:`, err);
+  }
 
   return { studentName, status, timestamp: now };
 }

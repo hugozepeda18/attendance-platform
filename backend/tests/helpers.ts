@@ -25,3 +25,9 @@ export async function cleanupCreatedSchools(prisma: import('@prisma/client').Pri
   await prisma.schoolConfig.deleteMany({ where });
   await prisma.school.deleteMany({ where: { id: { notIn: [NORTH, SOUTH] } } });
 }
+
+// Moves the faked clock (see setup.ts) to a local time in Mexico City on Tuesday 2026-10-06.
+export function setMexicoCityTime(hhmm: string): void {
+  const [h, m] = hhmm.split(':').map(Number);
+  jest.setSystemTime(new Date(Date.UTC(2026, 9, 6, h + 6, m)));
+}

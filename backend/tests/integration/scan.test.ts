@@ -1,7 +1,8 @@
 import request from 'supertest';
 import app from '../../src/index';
 import prisma from '../../src/lib/prisma';
-import { auth, KEYS, NORTH } from '../helpers';
+import { auth, KEYS, NORTH, setMexicoCityTime } from '../helpers';
+import { processScan } from '../../src/services/attendance.service';
 
 afterAll(async () => {
   await prisma.$disconnect();
@@ -9,6 +10,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await prisma.attendanceRecord.deleteMany({});
+  setMexicoCityTime('07:55');
 });
 
 describe('POST /api/v1/attendance/scan', () => {
@@ -85,5 +87,80 @@ describe('evaluateAbsences (via service)', () => {
       where: { status: 'ABSENT' },
     });
     expect(absentRecords).toHaveLength(29);
+  });
+});
+
+// Seeded "norte": start 08:00, grace 10 min, window (absenceCutoffMinutes) 30 min → absent from 08:30.
+describe('Attendance window (Phase 13)', () => {
+  const scan = (credentialUid = 'CARD-1A-01') =>
+    request(app).post('/api/v1/attendance/scan').set(auth(KEYS.northScanner)).send({ credentialUid });
+  const studentId = async () =>
+    (await prisma.student.findUniqueOrThrow({ where: { schoolId_credentialUid: { schoolId: NORTH, credentialUid: 'CARD-1A-01' } } })).id;
+
+  it('PRESENT up to start + grace', async () => {
+    setMexicoCityTime('08:10');
+    expect((await scan()).body.status).toBe('PRESENT');
+  });
+
+  it('TARDY inside the window', async () => {
+    setMexicoCityTime('08:29');
+    expect((await scan()).body.status).toBe('TARDY');
+  });
+
+  it('after the window: 422 OUTSIDE_WINDOW, nothing saved, no message', async () => {
+    setMexicoCityTime('08:30');
+    const res = await scan();
+    expect(res.status).toBe(422);
+    expect(res.body.error).toBe('OUTSIDE_WINDOW');
+    expect(await prisma.attendanceRecord.count()).toBe(0);
+
+    const sent: unknown[] = [];
+    const spy = { sendScanAlert: async (p: unknown) => void sent.push(p), sendAbsenceAlert: async () => {} };
+    await expect(processScan(NORTH, 'CARD-1A-01', spy)).rejects.toThrow('closed');
+    expect(sent).toHaveLength(0);
+  });
+
+  it('after the window, the absence run result is untouched (no correction)', async () => {
+    const { evaluateAbsences } = await import('../../src/services/attendance.service');
+    setMexicoCityTime('08:30');
+    await evaluateAbsences(NORTH, { sendScanAlert: async () => {}, sendAbsenceAlert: async () => {} });
+    setMexicoCityTime('09:20');
+    expect((await scan()).status).toBe(422);
+    const record = await prisma.attendanceRecord.findFirstOrThrow({ where: { studentId: await studentId() } });
+    expect(record.status).toBe('ABSENT');
+    expect(record.scanTimestamp).toBeNull();
+  });
+
+  it('a duplicate scan after the window still says ALREADY_SCANNED', async () => {
+    setMexicoCityTime('08:05');
+    await scan();
+    setMexicoCityTime('09:00');
+    expect((await scan()).status).toBe(409);
+  });
+
+  it('an excused student who arrives inside the window is recorded as arrived; the note is kept', async () => {
+    await prisma.attendanceRecord.create({
+      data: { studentId: await studentId(), date: new Date('2026-10-06'), status: 'EXCUSED', note: 'Cita médica', updatedByRole: 'PRINCIPAL' },
+    });
+    setMexicoCityTime('08:20');
+    const res = await scan();
+    expect(res.status).toBe(201);
+    expect(res.body.status).toBe('TARDY');
+    const record = await prisma.attendanceRecord.findFirstOrThrow({ where: { studentId: await studentId() } });
+    expect(record).toMatchObject({ status: 'TARDY', note: 'Cita médica', updatedByRole: 'SCANNER' });
+    expect(record.scanTimestamp).not.toBeNull();
+  });
+
+  it('a failing WhatsApp send does not fail the scan; attendance is saved', async () => {
+    const broken = {
+      sendScanAlert: async () => { throw new Error('WhatsApp down'); },
+      sendAbsenceAlert: async () => {},
+    };
+    const errorLog = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const result = await processScan(NORTH, 'CARD-1A-01', broken);
+    expect(result.status).toBe('PRESENT');
+    expect(await prisma.attendanceRecord.count({ where: { studentId: await studentId() } })).toBe(1);
+    expect(errorLog).toHaveBeenCalled();
+    errorLog.mockRestore();
   });
 });

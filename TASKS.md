@@ -92,14 +92,14 @@ Per `CLAUDE.md`, any task that adds UI or dependencies must first be added to `T
 
 ## Batch 1 — Go-live blockers (needed before the first real school)
 
-- [ ] **Phase 13: Fix the gate flow** *(S)*
+- [x] **Phase 13: Fix the gate flow** *(S)*
   - Attendance rule (confirmed 2026-10-07), example: school opens 08:00, safe-time window 60 min:
     - scan by 08:00 + `tardyGraceMinutes` (0 = none) → `PRESENT`, guardian gets the "entered school" message
     - scan before 09:00 (`absenceCutoffMinutes` = 60) → `TARDY`, guardian gets the "entered school, late" message
     - no scan by 09:00 → `ABSENT`, guardian gets the absence notice (once). Students who never arrive have no scan time.
     - **No correction messages** to guardians, ever.
-  - [ ] **Bug:** a scan after the cutoff (student already `ABSENT`) returns 500 (duplicate record). **Decided (C):** reject it with `422 OUTSIDE_WINDOW`, save nothing, send nothing; the gate shows red "Fuera de horario, acude a dirección". Keep it minimal: the door may be unattended and the principal can still override by hand.
-  - [ ] **Bug:** if the WhatsApp send fails after the record is saved, the scan returns 500 and a retry gets 409. Record first, then notify via the outbox (Phase 15), so the gate always gets a success.
+  - [x] **Bug:** a scan after the cutoff (student already `ABSENT`) returns 500 (duplicate record). **Decided (C):** reject it with `422 OUTSIDE_WINDOW`, save nothing, send nothing; the gate shows red "Fuera de horario, acude a dirección". Keep it minimal: the door may be unattended and the principal can still override by hand.
+  - [x] **Bug:** if the WhatsApp send fails after the record is saved, the scan returns 500 and a retry gets 409. Now the failure is logged and the scan returns 201; the outbox with retries comes in Phase 15.
   - Done when: integration tests cover each rule row above, the after-cutoff scan per the decision, and scan with a failing notifier → 201.
 
 - [ ] **Phase 13b: Excuse in advance** *(S–M)*

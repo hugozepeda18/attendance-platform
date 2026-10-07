@@ -77,8 +77,10 @@
 * **Scanner Ingestion & De-duplication:**
   * Endpoint accepts `POST /api/v1/attendance/scan` with `{ "credentialUid": "CARD123" }`.
   * If a record already exists for the student on `current_date` with status `PRESENT` or `TARDY`, reject with `409 Conflict: "Student already entered today"`. No check-out is supported.
-  * Evaluate arrival timestamp against `SchoolConfig.schoolStartTime` + `tardyGraceMinutes`. If after grace, assign `TARDY`; otherwise `PRESENT`.
-  * Send immediate "Student entered school" WhatsApp notification to the student's guardian.
+  * Evaluate the arrival time (school timezone): up to `schoolStartTime + tardyGraceMinutes` → `PRESENT`; before `schoolStartTime + absenceCutoffMinutes` (the school's safe-time window) → `TARDY`; from the cutoff on → rejected with `422 OUTSIDE_WINDOW`, nothing saved and no message (the student goes to the office; the principal can override by hand).
+  * If the student already has an `EXCUSED`/`ABSENT` record for today and scans inside the window, the record is updated to the scanned status (the note is kept).
+  * Guardians never receive correction messages.
+  * Send immediate "Student entered school" WhatsApp notification to the student's guardian. A failed send is logged and does not fail the scan (attendance is already saved).
 * **Automated Absence Evaluator (`node-cron`):**
   * Runs every school morning at `schoolStartTime + absenceCutoffMinutes` in each school's timezone. Implemented as one `node-cron` tick per minute that re-reads active schools from the DB and evaluates those whose cutoff is now, so new schools, edited settings and deactivations apply without a restart. A tick missed while the server is down is not replayed.
   * Finds all active students without an `AttendanceRecord` for today.
@@ -99,6 +101,7 @@
   * Body: `{ "credentialUid": "STU-1004" }`
   * Response 201: `{ "success": true, "student": "Juan Perez", "status": "PRESENT", "timestamp": "2026-09-09T07:54:12Z" }`
   * Response 409: `{ "error": "ALREADY_SCANNED", "message": "Attendance already recorded for today" }`
+  * Response 422: `{ "error": "OUTSIDE_WINDOW", ... }` when scanned at or after `schoolStartTime + absenceCutoffMinutes`
 * `GET /api/v1/attendance/search?query=...`
   * Query parameters: `query` (can match student name, group like `"1-A"`, grade `"1"`, or teacher name).
   * Returns: List of matching students with current status and 30-day attendance overview.
