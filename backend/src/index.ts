@@ -2,13 +2,17 @@ import 'dotenv/config';
 import express from 'express';
 import healthRouter from './routes/health';
 import attendanceRouter from './routes/attendance';
+import adminRouter from './routes/admin';
+import authRouter from './routes/auth';
 import { scheduleAbsenceJob } from './jobs/absence.job';
 
 const app = express();
 
 app.use(express.json());
 app.use(healthRouter);
+app.use('/api/v1', authRouter);
 app.use('/api/v1', attendanceRouter);
+app.use('/api/v1', adminRouter);
 
 export default app;
 

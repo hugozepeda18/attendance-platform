@@ -50,13 +50,14 @@ export function getDateInTimezone(timezone: string, refDate?: Date): Date {
 }
 
 export async function processScan(
+  schoolId: string,
   credentialUid: string,
   notifierService: NotifierService = notifier,
 ): Promise<ScanResult> {
-  const config = await getSchoolConfig();
+  const config = await getSchoolConfig(schoolId);
   if (!config) throw new Error('School configuration not found');
 
-  const student = await findStudentByCredentialUid(credentialUid);
+  const student = await findStudentByCredentialUid(schoolId, credentialUid);
   if (!student) throw new StudentNotFoundError();
 
   const today = getDateInTimezone(config.timezone);
@@ -91,13 +92,14 @@ export async function processScan(
 }
 
 export async function evaluateAbsences(
+  schoolId: string,
   notifierService: NotifierService = notifier,
 ): Promise<number> {
-  const config = await getSchoolConfig();
+  const config = await getSchoolConfig(schoolId);
   if (!config) throw new Error('School configuration not found');
 
   const today = getDateInTimezone(config.timezone);
-  const absentStudents = await findStudentsWithoutRecordForDate(today);
+  const absentStudents = await findStudentsWithoutRecordForDate(schoolId, today);
 
   for (const student of absentStudents) {
     await createAttendanceRecord({
@@ -115,6 +117,6 @@ export async function evaluateAbsences(
     });
   }
 
-  console.log(`[AbsenceJob] Marked ${absentStudents.length} student(s) as ABSENT`);
+  console.log(`[AbsenceJob] ${schoolId}: marked ${absentStudents.length} student(s) as ABSENT`);
   return absentStudents.length;
 }

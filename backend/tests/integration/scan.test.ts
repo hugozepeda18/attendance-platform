@@ -1,6 +1,7 @@
 import request from 'supertest';
 import app from '../../src/index';
 import prisma from '../../src/lib/prisma';
+import { auth, KEYS, NORTH } from '../helpers';
 
 afterAll(async () => {
   await prisma.$disconnect();
@@ -14,6 +15,7 @@ describe('POST /api/v1/attendance/scan', () => {
   it('creates a PRESENT or TARDY record for a valid credential', async () => {
     const res = await request(app)
       .post('/api/v1/attendance/scan')
+      .set(auth(KEYS.northScanner))
       .send({ credentialUid: 'CARD-1A-01' });
 
     expect(res.status).toBe(201);
@@ -26,10 +28,12 @@ describe('POST /api/v1/attendance/scan', () => {
   it('returns 409 on a duplicate scan for the same student today', async () => {
     await request(app)
       .post('/api/v1/attendance/scan')
+      .set(auth(KEYS.northScanner))
       .send({ credentialUid: 'CARD-1A-01' });
 
     const res = await request(app)
       .post('/api/v1/attendance/scan')
+      .set(auth(KEYS.northScanner))
       .send({ credentialUid: 'CARD-1A-01' });
 
     expect(res.status).toBe(409);
@@ -39,6 +43,7 @@ describe('POST /api/v1/attendance/scan', () => {
   it('returns 404 for an unknown credentialUid', async () => {
     const res = await request(app)
       .post('/api/v1/attendance/scan')
+      .set(auth(KEYS.northScanner))
       .send({ credentialUid: 'CARD-DOES-NOT-EXIST' });
 
     expect(res.status).toBe(404);
@@ -48,6 +53,7 @@ describe('POST /api/v1/attendance/scan', () => {
   it('returns 400 when credentialUid is missing', async () => {
     const res = await request(app)
       .post('/api/v1/attendance/scan')
+      .set(auth(KEYS.northScanner))
       .send({});
 
     expect(res.status).toBe(400);
@@ -62,6 +68,7 @@ describe('evaluateAbsences (via service)', () => {
     // Scan one student first so they are NOT absent
     await request(app)
       .post('/api/v1/attendance/scan')
+      .set(auth(KEYS.northScanner))
       .send({ credentialUid: 'CARD-1A-01' });
 
     const silentNotifier = {
@@ -69,9 +76,9 @@ describe('evaluateAbsences (via service)', () => {
       sendAbsenceAlert: async () => {},
     };
 
-    const markedCount = await evaluateAbsences(silentNotifier);
+    const markedCount = await evaluateAbsences(NORTH, silentNotifier);
 
-    // 30 total students - 1 scanned = 29 should be marked absent
+    // 30 students in this school - 1 scanned = 29 should be marked absent
     expect(markedCount).toBe(29);
 
     const absentRecords = await prisma.attendanceRecord.findMany({

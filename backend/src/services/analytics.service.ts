@@ -1,4 +1,5 @@
 import { AttendanceStatus, UpdatedByRole } from '@prisma/client';
+import { AuthContext } from './auth.service';
 import { z } from 'zod';
 import { getSchoolConfig } from '../repositories/schoolConfig.repository';
 import { findStudentsByGradeAndGroup, findStudentById } from '../repositories/student.repository';
@@ -30,11 +31,11 @@ function riskFlags(tardy30: number, absent30: number) {
   };
 }
 
-export async function getGroupAnalytics(grade: number, group: string) {
-  const config = await getSchoolConfig();
+export async function getGroupAnalytics(schoolId: string, grade: number, group: string) {
+  const config = await getSchoolConfig(schoolId);
   const timezone = config?.timezone ?? 'America/Mexico_City';
 
-  const students = await findStudentsByGradeAndGroup(grade, group);
+  const students = await findStudentsByGradeAndGroup(schoolId, grade, group);
   if (students.length === 0) return null;
 
   const { today, thirtyDaysAgo } = dateRange(timezone);
@@ -85,11 +86,11 @@ export async function getGroupAnalytics(grade: number, group: string) {
   return { grade, group, today: todaySummary, thirtyDayRate, students: studentList };
 }
 
-export async function getStudentAnalytics(studentId: string) {
-  const student = await findStudentById(studentId);
+export async function getStudentAnalytics(schoolId: string, studentId: string) {
+  const student = await findStudentById(schoolId, studentId);
   if (!student) return null;
 
-  const config = await getSchoolConfig();
+  const config = await getSchoolConfig(schoolId);
   const timezone = config?.timezone ?? 'America/Mexico_City';
   const { today, thirtyDaysAgo } = dateRange(timezone);
 
@@ -122,16 +123,17 @@ export async function getStudentAnalytics(studentId: string) {
 }
 
 export async function overrideRecord(
+  auth: AuthContext,
   id: string,
   status: AttendanceStatus,
   note?: string,
 ) {
-  const existing = await findRecordById(id);
+  const existing = await findRecordById(auth.schoolId!, id);
   if (!existing) return null;
 
   return updateAttendanceRecord(id, {
     status,
     note: note ?? null,
-    updatedByRole: UpdatedByRole.PRINCIPAL,
+    updatedByRole: auth.role === 'SUPERADMIN' ? UpdatedByRole.SUPERADMIN : UpdatedByRole.PRINCIPAL,
   });
 }

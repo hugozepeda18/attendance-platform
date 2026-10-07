@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
+import { schoolIdOf } from '../middleware/auth';
 import { searchStudents } from '../services/search.service';
 
 const QuerySchema = z.object({
@@ -14,7 +15,7 @@ export async function search(req: Request, res: Response): Promise<void> {
   }
 
   try {
-    const results = await searchStudents(parsed.data.query);
+    const results = await searchStudents(schoolIdOf(req), parsed.data.query);
     res.json({ results });
   } catch (err) {
     console.error('[search]', err);

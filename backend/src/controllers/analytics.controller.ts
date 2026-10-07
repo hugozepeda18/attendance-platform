@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { schoolIdOf } from '../middleware/auth';
 import { getGroupAnalytics, getStudentAnalytics, overrideRecord, OverrideSchema } from '../services/analytics.service';
 
 export async function groupAnalytics(req: Request, res: Response): Promise<void> {
@@ -11,7 +12,7 @@ export async function groupAnalytics(req: Request, res: Response): Promise<void>
   }
 
   try {
-    const data = await getGroupAnalytics(grade, group);
+    const data = await getGroupAnalytics(schoolIdOf(req), grade, group);
     if (!data) {
       res.status(404).json({ error: 'NOT_FOUND', message: `No students found for grade ${grade}, group ${group}` });
       return;
@@ -25,7 +26,7 @@ export async function groupAnalytics(req: Request, res: Response): Promise<void>
 
 export async function studentAnalytics(req: Request, res: Response): Promise<void> {
   try {
-    const data = await getStudentAnalytics(String(req.params.id));
+    const data = await getStudentAnalytics(schoolIdOf(req), String(req.params.id));
     if (!data) {
       res.status(404).json({ error: 'NOT_FOUND', message: 'Student not found' });
       return;
@@ -45,7 +46,7 @@ export async function patchRecord(req: Request, res: Response): Promise<void> {
   }
 
   try {
-    const updated = await overrideRecord(String(req.params.id), parsed.data.status, parsed.data.note);
+    const updated = await overrideRecord(req.auth!, String(req.params.id), parsed.data.status, parsed.data.note);
     if (!updated) {
       res.status(404).json({ error: 'NOT_FOUND', message: 'Attendance record not found' });
       return;

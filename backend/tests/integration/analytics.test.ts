@@ -1,6 +1,7 @@
 import request from 'supertest';
 import app from '../../src/index';
 import prisma from '../../src/lib/prisma';
+import { auth, KEYS, NORTH } from '../helpers';
 
 afterAll(async () => {
   await prisma.$disconnect();
@@ -14,7 +15,8 @@ beforeEach(async () => {
 
 describe('GET /api/v1/attendance/analytics/group/:grade/:group', () => {
   it('returns summary for a valid group with no records today', async () => {
-    const res = await request(app).get('/api/v1/attendance/analytics/group/1/A');
+    const res = await request(app).get('/api/v1/attendance/analytics/group/1/A')
+      .set(auth(KEYS.northStaff));
     expect(res.status).toBe(200);
     expect(res.body.grade).toBe(1);
     expect(res.body.group).toBe('A');
@@ -27,16 +29,19 @@ describe('GET /api/v1/attendance/analytics/group/:grade/:group', () => {
   });
 
   it('reflects a scanned student in today counts', async () => {
-    await request(app).post('/api/v1/attendance/scan').send({ credentialUid: 'CARD-1A-01' });
+    await request(app).post('/api/v1/attendance/scan')
+      .set(auth(KEYS.northStaff)).send({ credentialUid: 'CARD-1A-01' });
 
-    const res = await request(app).get('/api/v1/attendance/analytics/group/1/A');
+    const res = await request(app).get('/api/v1/attendance/analytics/group/1/A')
+      .set(auth(KEYS.northStaff));
     expect(res.status).toBe(200);
     expect(res.body.today.present + res.body.today.tardy).toBe(1);
     expect(res.body.thirtyDayRate).toBeGreaterThan(0);
   });
 
   it('student list has required fields including risk flags', async () => {
-    const res = await request(app).get('/api/v1/attendance/analytics/group/2/B');
+    const res = await request(app).get('/api/v1/attendance/analytics/group/2/B')
+      .set(auth(KEYS.northStaff));
     expect(res.status).toBe(200);
     const student = res.body.students[0];
     expect(student).toMatchObject({
@@ -53,7 +58,8 @@ describe('GET /api/v1/attendance/analytics/group/:grade/:group', () => {
   });
 
   it('returns 404 for a group with no students', async () => {
-    const res = await request(app).get('/api/v1/attendance/analytics/group/9/Z');
+    const res = await request(app).get('/api/v1/attendance/analytics/group/9/Z')
+      .set(auth(KEYS.northStaff));
     expect(res.status).toBe(404);
     expect(res.body.error).toBe('NOT_FOUND');
   });
@@ -63,9 +69,10 @@ describe('GET /api/v1/attendance/analytics/group/:grade/:group', () => {
 
 describe('GET /api/v1/attendance/analytics/student/:id', () => {
   it('returns student profile with empty timeline when no records exist', async () => {
-    const student = await prisma.student.findFirst({ where: { credentialUid: 'CARD-1A-01' } });
+    const student = await prisma.student.findFirst({ where: { schoolId: NORTH, credentialUid: 'CARD-1A-01' } });
 
-    const res = await request(app).get(`/api/v1/attendance/analytics/student/${student!.id}`);
+    const res = await request(app).get(`/api/v1/attendance/analytics/student/${student!.id}`)
+      .set(auth(KEYS.northStaff));
     expect(res.status).toBe(200);
     expect(res.body.student.credentialUid).toBe('CARD-1A-01');
     expect(res.body.timeline).toEqual([]);
@@ -74,10 +81,12 @@ describe('GET /api/v1/attendance/analytics/student/:id', () => {
   });
 
   it('populates timeline after a scan', async () => {
-    await request(app).post('/api/v1/attendance/scan').send({ credentialUid: 'CARD-2A-01' });
+    await request(app).post('/api/v1/attendance/scan')
+      .set(auth(KEYS.northStaff)).send({ credentialUid: 'CARD-2A-01' });
 
-    const student = await prisma.student.findFirst({ where: { credentialUid: 'CARD-2A-01' } });
-    const res = await request(app).get(`/api/v1/attendance/analytics/student/${student!.id}`);
+    const student = await prisma.student.findFirst({ where: { schoolId: NORTH, credentialUid: 'CARD-2A-01' } });
+    const res = await request(app).get(`/api/v1/attendance/analytics/student/${student!.id}`)
+      .set(auth(KEYS.northStaff));
 
     expect(res.status).toBe(200);
     expect(res.body.timeline).toHaveLength(1);
@@ -90,8 +99,9 @@ describe('GET /api/v1/attendance/analytics/student/:id', () => {
   });
 
   it('returns student profile with all required fields', async () => {
-    const student = await prisma.student.findFirst({ where: { credentialUid: 'CARD-3B-01' } });
-    const res = await request(app).get(`/api/v1/attendance/analytics/student/${student!.id}`);
+    const student = await prisma.student.findFirst({ where: { schoolId: NORTH, credentialUid: 'CARD-3B-01' } });
+    const res = await request(app).get(`/api/v1/attendance/analytics/student/${student!.id}`)
+      .set(auth(KEYS.northStaff));
 
     expect(res.status).toBe(200);
     expect(res.body.student).toMatchObject({
@@ -109,7 +119,8 @@ describe('GET /api/v1/attendance/analytics/student/:id', () => {
   it('returns 404 for an unknown student ID', async () => {
     const res = await request(app).get(
       '/api/v1/attendance/analytics/student/00000000-0000-0000-0000-000000000000',
-    );
+    )
+      .set(auth(KEYS.northStaff));
     expect(res.status).toBe(404);
     expect(res.body.error).toBe('NOT_FOUND');
   });

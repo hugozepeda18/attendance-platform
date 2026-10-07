@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
+import { schoolIdOf } from '../middleware/auth';
 import { processScan, StudentNotFoundError, AlreadyScannedError } from '../services/attendance.service';
 
 const ScanSchema = z.object({
@@ -14,7 +15,7 @@ export async function scan(req: Request, res: Response): Promise<void> {
   }
 
   try {
-    const result = await processScan(parsed.data.credentialUid);
+    const result = await processScan(schoolIdOf(req), parsed.data.credentialUid);
     res.status(201).json({
       success: true,
       student: result.studentName,

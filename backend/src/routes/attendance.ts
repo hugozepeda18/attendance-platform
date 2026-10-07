@@ -2,14 +2,19 @@ import { Router } from 'express';
 import { scan } from '../controllers/attendance.controller';
 import { search } from '../controllers/search.controller';
 import { groupAnalytics, studentAnalytics, patchRecord } from '../controllers/analytics.controller';
+import { authenticate, requireTenant, requireRole } from '../middleware/auth';
 import { principalGuard } from '../middleware/principalGuard';
 
 const router = Router();
 
-router.post('/attendance/scan', scan);
-router.get('/attendance/search', search);
-router.get('/attendance/analytics/group/:grade/:group', groupAnalytics);
-router.get('/attendance/analytics/student/:id', studentAnalytics);
+// Every attendance route is tenant-scoped; scanners may only scan (no student PII reads).
+router.use('/attendance', authenticate, requireTenant);
+const staff = requireRole('STAFF', 'PRINCIPAL');
+
+router.post('/attendance/scan', requireRole('SCANNER', 'STAFF', 'PRINCIPAL'), scan);
+router.get('/attendance/search', staff, search);
+router.get('/attendance/analytics/group/:grade/:group', staff, groupAnalytics);
+router.get('/attendance/analytics/student/:id', staff, studentAnalytics);
 router.patch('/attendance/record/:id', principalGuard, patchRecord);
 
 export default router;

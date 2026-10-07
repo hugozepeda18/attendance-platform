@@ -7,8 +7,8 @@ export async function findRecordByStudentAndDate(studentId: string, date: Date) 
   });
 }
 
-export async function findRecordById(id: string) {
-  return prisma.attendanceRecord.findUnique({ where: { id } });
+export async function findRecordById(schoolId: string, id: string) {
+  return prisma.attendanceRecord.findFirst({ where: { id, student: { schoolId } } });
 }
 
 export async function createAttendanceRecord(data: {

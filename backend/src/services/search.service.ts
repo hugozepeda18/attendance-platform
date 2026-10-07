@@ -13,25 +13,26 @@ import { getDateInTimezone } from './attendance.service';
 const GROUP_PATTERN = /^(\d+)-([A-Za-z]+)$/;
 const GRADE_PATTERN = /^\d+$/;
 
-export async function searchStudents(query: string) {
+export async function searchStudents(schoolId: string, query: string) {
   const groupMatch = query.match(GROUP_PATTERN);
   const gradeMatch = !groupMatch && GRADE_PATTERN.test(query);
 
   let students;
   if (groupMatch) {
     students = await findStudentsByGradeAndGroup(
+      schoolId,
       parseInt(groupMatch[1], 10),
       groupMatch[2].toUpperCase(),
     );
   } else if (gradeMatch) {
-    students = await findStudentsByGrade(parseInt(query, 10));
+    students = await findStudentsByGrade(schoolId, parseInt(query, 10));
   } else {
-    students = await findStudentsByName(query);
+    students = await findStudentsByName(schoolId, query);
   }
 
   if (students.length === 0) return [];
 
-  const config = await getSchoolConfig();
+  const config = await getSchoolConfig(schoolId);
   const timezone = config?.timezone ?? 'America/Mexico_City';
   const today = getDateInTimezone(timezone);
   const thirtyDaysAgo = new Date(today);

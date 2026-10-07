@@ -7,8 +7,40 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model School {
+  id        String        @id @default(uuid())
+  name      String
+  active    Boolean       @default(true)
+  createdAt DateTime      @default(now())
+  config    SchoolConfig?
+  students  Student[]
+  teachers  Teacher[]
+  subjects  Subject[]
+  apiKeys   ApiKey[]
+}
+
+// Long-lived device/service credentials (scanners, integrations). Only the sha256 hash is stored.
+model ApiKey {
+  id        String    @id @default(uuid())
+  schoolId  String
+  school    School    @relation(fields: [schoolId], references: [id])
+  role      Role
+  label     String
+  keyHash   String    @unique
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+}
+
+enum Role {
+  SCANNER
+  STAFF
+  PRINCIPAL
+}
+
 model SchoolConfig {
   id                   String @id @default(uuid())
+  schoolId             String @unique
+  school               School @relation(fields: [schoolId], references: [id])
   schoolStartTime      String // HH:mm format, e.g. "08:00"
   tardyGraceMinutes    Int    @default(10)
   absenceCutoffMinutes Int    @default(30)
@@ -17,7 +49,9 @@ model SchoolConfig {
 
 model Student {
   id                String             @id @default(uuid())
-  credentialUid     String             @unique
+  schoolId          String
+  school            School             @relation(fields: [schoolId], references: [id])
+  credentialUid     String
   firstName         String
   lastName          String
   grade             Int
@@ -25,6 +59,8 @@ model Student {
   guardianName      String
   guardianWhatsApp  String
   attendanceRecords AttendanceRecord[]
+
+  @@unique([schoolId, credentialUid])
 }
 
 model AttendanceRecord {
@@ -51,18 +87,25 @@ enum UpdatedByRole {
   SYSTEM
   SCANNER
   PRINCIPAL
+  SUPERADMIN
 }
 
 // Extensible stubs for future phases
 model Teacher {
   id       String    @id @default(uuid())
+  schoolId String
+  school   School    @relation(fields: [schoolId], references: [id])
   name     String
-  email    String    @unique
+  email    String
   subjects Subject[]
+
+  @@unique([schoolId, email])
 }
 
 model Subject {
   id        String   @id @default(uuid())
+  schoolId  String
+  school    School   @relation(fields: [schoolId], references: [id])
   name      String
   grade     Int
   group     String
