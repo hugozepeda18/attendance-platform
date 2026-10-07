@@ -102,6 +102,15 @@ Per `CLAUDE.md`, any task that adds UI or dependencies must first be added to `T
   - [ ] **Bug:** if the WhatsApp send fails after the record is saved, the scan returns 500 and a retry gets 409. Record first, then notify via the outbox (Phase 15), so the gate always gets a success.
   - Done when: integration tests cover each rule row above, the after-cutoff scan per the decision, and scan with a failing notifier → 201.
 
+- [ ] **Phase 13b: Excuse in advance** *(S–M)*
+  - Flow (office staff or principal): search bar → student → "Justificar falta" → date (default today, optional "until" date) + reason (Cita médica / Enfermedad / Asunto familiar / free text) → save.
+  - [ ] `POST /api/v1/attendance/excuses { studentId, from, to?, reason }`: creates `EXCUSED` records (with note, `updatedByUserId`) for each school day in the range; today allowed only before the cutoff; existing records are left untouched (changing those stays PRINCIPAL-only).
+  - [ ] Roles: STAFF and PRINCIPAL can excuse in advance. Changing existing records stays PRINCIPAL-only.
+  - [ ] The absence run needs no change: it only marks students without a record, so excused students get no absence notice.
+  - [ ] If an excused student scans inside the window, the record becomes `PRESENT`/`TARDY` and the "entered school" message is sent; after the window, decision C applies.
+  - [ ] UI: "Justificar falta" button in the student modal; excused days show the reason, who registered it and when.
+  - Done when: tests show an excuse created at 07:30 → no ABSENT record and no message at the cutoff, a STAFF user can excuse but cannot change an existing record, and an excused student scanning at 08:40 → TARDY + entry message.
+
 - [ ] **Phase 14: Scan API v2 for real scanners** *(M)*
   - [ ] `POST /api/v1/attendance/scan` accepts `{ credentialUid, scannedAt, eventId }`. `scannedAt` comes from the device so offline-buffered scans keep the real arrival time.
   - [ ] Trust rules: accept `scannedAt` only if ≤ 2 min in the future and ≤ 24 h in the past; otherwise use server time and flag `clockSkew`. TARDY/PRESENT is computed from `scannedAt`.
@@ -122,6 +131,7 @@ Per `CLAUDE.md`, any task that adds UI or dependencies must first be added to `T
   - [ ] Meta-approved **utility templates in Spanish**: entrada, llegada tarde, inasistencia (no correction template: decided 2026-10-07). Per-school display name. Entry notifications on every scan are confirmed; budget ~2 messages/student/day.
   - [ ] Expiry: "entered school" messages older than 2 h are not sent (marked `EXPIRED`); absence notices always send.
   - [ ] One message per `eventId` (no duplicates on gate retries or worker restarts).
+  - Decided 2026-10-07: **all notifications via WhatsApp** (entry + absence), **one WhatsApp number for the whole platform**, schools pay **per student** (price TBD). The ~US$0.18–0.30/student/month message cost leaves margin, but keep every cost control below.
   - [ ] Cost controls (see "Notification cost plan" below): one platform-wide WhatsApp number (aggregated volume tiers), utility-category templates only, sibling arrivals to the same phone merged into one message within 2 min, delivered-only billing tracked per school.
   - [ ] `NotificationChannel` per guardian (`WHATSAPP | PUSH | NONE`) and per message type, so entry messages can move to a free channel without code changes.
   - [ ] Delivery webhook updates status (sent/delivered/read/failed); show it in the student timeline.
@@ -139,7 +149,7 @@ Per `CLAUDE.md`, any task that adds UI or dependencies must first be added to `T
   - [ ] Antivirus/SmartScreen: unsigned PyInstaller executables are often flagged. Start with a documented "allow" step in setup; buy a code-signing certificate once several schools run it.
   - [ ] Updates: the server reports the latest gate version in the heartbeat response; the screen shows "Actualización disponible". Manual replace for now; auto-update only if school count makes it worth it.
   - [ ] After-cutoff scan: red "Fuera de horario, acude a dirección" with a distinct beep (Phase 13 decision C).
-  - [ ] `pyserial` support only if a school's reader is serial/COM.
+  - Readers are **USB keyboard-type** (confirmed 2026-10-07): the reader types the code + Enter into the focused `tkinter` window. No serial support needed.
   - Done when: a pilot with real hardware passes 50 scans online, cable unplugged, 20 scans, reconnect; every scan gets the correct status and exactly one WhatsApp each.
 
 - [ ] **Phase 17: Student roster management** *(M)*
