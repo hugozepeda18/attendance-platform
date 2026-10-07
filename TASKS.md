@@ -51,3 +51,28 @@ Rules for the Agent:
   - [x] Run complete backend test suite (`npm test`).
   - [x] Execute `RUNBOOK.md` simulation script verifying scan -> record -> duplicate prevention loop.
   - [x] Run frontend production build check (`npm run build`).
+- [x] **Phase 6: Multi-Tenant Data Model**
+  - [x] Add `School` and `ApiKey` models; `schoolId` on `SchoolConfig`, `Student`, `Teacher`, `Subject`.
+  - [x] Per-school uniqueness for `credentialUid` and teacher `email`.
+  - [x] Migration backfills pre-existing data into a "Default School".
+  - [x] Seed two schools sharing badge IDs, with dev API keys.
+
+- [x] **Phase 7: Authentication & Tenant Scoping**
+  - [x] Bearer API-key auth (hashed keys); ignore client `x-user-role`.
+  - [x] Role gates: SCANNER (scan), STAFF (read), PRINCIPAL (override); SUPERADMIN via env key + `x-school-id`.
+  - [x] Scope every repository query by `schoolId`.
+  - [x] Tenant isolation tests (search, analytics, override, scan, absence job).
+
+- [x] **Phase 8: Per-School Absence Job**
+  - [x] Schedule one cron task per active school in its timezone; `evaluateAbsences(schoolId)`.
+
+- [x] **Phase 9: Super-Admin API**
+  - [x] Onboard school (+ config + one-time keys), list, activate/deactivate, issue/list/revoke keys.
+
+- [x] **Phase 10: Frontend Sign-In**
+  - [x] Sign-in screen, bearer header interceptor, `GET /api/v1/me`, remove demo role toggle.
+
+- [ ] **Phase 11: User Accounts (Option B)**
+  - [ ] `User` + `Session` models; email/password login (Node `crypto.scrypt`), opaque session tokens.
+  - [ ] Overrides record the acting user; principals manage their school's staff accounts.
+  - [ ] Frontend email/password sign-in; API keys remain for scanner devices.

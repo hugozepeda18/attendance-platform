@@ -27,9 +27,5 @@ export async function patchRecord(
   status: AttendanceStatus,
   note: string,
 ): Promise<void> {
-  await api.patch(
-    `/api/v1/attendance/record/${recordId}`,
-    { status, note },
-    { headers: { 'x-user-role': 'PRINCIPAL' } },
-  );
+  await api.patch(`/api/v1/attendance/record/${recordId}`, { status, note });
 }

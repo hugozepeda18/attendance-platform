@@ -1,5 +1,10 @@
 export type AttendanceStatus = 'PRESENT' | 'TARDY' | 'ABSENT' | 'EXCUSED';
-export type UserRole = 'TEACHER' | 'PRINCIPAL';
+export type UserRole = 'SCANNER' | 'STAFF' | 'PRINCIPAL' | 'SUPERADMIN';
+
+export interface Me {
+  role: UserRole;
+  school: { id: string; name: string } | null;
+}
 export type ViewTab = 'grade' | 'group';
 
 export interface AttendanceOverview {

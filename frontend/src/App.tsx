@@ -1,18 +1,36 @@
-import { useState } from 'react';
-import type { UserRole, ViewTab } from './types';
+import { useEffect, useState } from 'react';
+import type { Me, ViewTab } from './types';
 import NavBar from './components/NavBar';
 import SearchBar from './components/SearchBar';
 import GroupView from './pages/GroupView';
 import GradeView from './pages/GradeView';
 import Student30DayModal from './components/Student30DayModal';
+import SignIn from './pages/SignIn';
+import { getMe } from './services/auth';
+import { getToken, clearToken } from './services/session';
 
 export default function App() {
-  const [role, setRole] = useState<UserRole>('TEACHER');
+  const [me, setMe] = useState<Me | null>(null);
+  const [checking, setChecking] = useState(() => getToken() !== null);
   const [activeTab, setActiveTab] = useState<ViewTab>('group');
   const [selectedGrade, setSelectedGrade] = useState(1);
   const [selectedGroup, setSelectedGroup] = useState('A');
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // Restore the session on reload
+  useEffect(() => {
+    if (!getToken()) return;
+    getMe()
+      .then(setMe)
+      .catch(() => clearToken())
+      .finally(() => setChecking(false));
+  }, []);
+
+  function handleSignOut() {
+    clearToken();
+    setMe(null);
+  }
 
   function handleGroupSelect(grade: number, group: string) {
     setSelectedGrade(grade);
@@ -20,13 +38,19 @@ export default function App() {
     setActiveTab('group');
   }
 
+  if (checking) return <div className="min-h-screen bg-slate-50" />;
+  if (!me?.school) return <SignIn onSignedIn={setMe} />;
+
+  const { role } = me;
+
   return (
     <div className="min-h-screen bg-slate-50">
       <NavBar
         activeTab={activeTab}
         onTabChange={setActiveTab}
         role={role}
-        onRoleChange={setRole}
+        schoolName={me.school.name}
+        onSignOut={handleSignOut}
       />
 
       <main className="max-w-7xl mx-auto px-4 py-6 space-y-5">
