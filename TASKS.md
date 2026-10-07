@@ -169,6 +169,22 @@ Per `CLAUDE.md`, any task that adds UI or dependencies must first be added to `T
 - [ ] **Phase 19: Spanish UI** *(M)*
   - [ ] All UI text in Spanish (es-MX), dates in local format. Keep the strings in one file.
 
+- [ ] **Phase 19b: Phone-friendly** *(M)* — do together with Phase 19, since both touch every screen
+  - Audit 2026-10-07 at iPhone size (390 px): layouts mostly stack correctly and search works well, but:
+    - the school navbar is ~27 px wider than the phone: the sign-out button is cut off and tab labels wrap ("By / Grade");
+    - user tables (school Staff page and admin Users) hide Status / Reset password / Deactivate off-screen behind a sideways scroll with no visual hint;
+    - in the group view the student list sits below 5 KPI cards and 2 charts (~1,500 px of scrolling), so the phone question "who is missing?" is at the bottom;
+    - "Override", "Revoke" and similar actions are small text links, not finger-sized buttons; the help text says "Click";
+    - sessions live in `sessionStorage`, so when the phone closes the tab the user has to log in again every time.
+  - [ ] Phone navigation: compact top bar (school name + menu) and a bottom tab bar (Hoy / Grupos / Buscar / Personal); nothing wider than the screen.
+  - [ ] Group view on phones: compact one-line KPI strip, student list first (missing students on top), charts collapsed under "Ver gráficas".
+  - [ ] Tables become stacked cards on phones (Staff, admin Users, device keys); every action is a full button ≥ 44 px tall.
+  - [ ] Student modal as a full-screen sheet on phones, with large "Justificar falta" (Phase 13b) and "Cambiar estado" buttons; text says "Toca", not "Click".
+  - [ ] "Recordarme en este teléfono": optional 30-day session stored in `localStorage` (revocable, shown in the user's sessions); default stays 12 h.
+  - [ ] Installable: web app manifest + icon so staff can "Agregar a pantalla de inicio" and open it like an app (no app store, no new dependencies).
+  - [ ] Keep the phone-size screenshot check (headless Chrome via DevTools protocol, no dependencies) in `frontend/scripts/phone-check.mjs`.
+  - Done when: the phone check shows no element wider than 390 px on every screen, every action button is ≥ 44 px, and a staff user can go from opening the app to "Justificar falta" saved in ≤ 4 taps after search.
+
 - [ ] **Phase 20: Production readiness** *(M)*
   - [ ] Dockerfiles (backend, worker, frontend static), production compose, env checklist.
   - [ ] Wildcard DNS + TLS, CORS locked to `*.<domain>`, security headers, body size limits.
