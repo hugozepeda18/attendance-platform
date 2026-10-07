@@ -1,0 +1,71 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model SchoolConfig {
+  id                   String @id @default(uuid())
+  schoolStartTime      String // HH:mm format, e.g. "08:00"
+  tardyGraceMinutes    Int    @default(10)
+  absenceCutoffMinutes Int    @default(30)
+  timezone             String @default("America/Mexico_City")
+}
+
+model Student {
+  id                String             @id @default(uuid())
+  credentialUid     String             @unique
+  firstName         String
+  lastName          String
+  grade             Int
+  group             String
+  guardianName      String
+  guardianWhatsApp  String
+  attendanceRecords AttendanceRecord[]
+}
+
+model AttendanceRecord {
+  id            String           @id @default(uuid())
+  studentId     String
+  student       Student          @relation(fields: [studentId], references: [id])
+  date          DateTime         @db.Date
+  scanTimestamp DateTime?
+  status        AttendanceStatus
+  updatedByRole UpdatedByRole
+  note          String?
+
+  @@unique([studentId, date])
+}
+
+enum AttendanceStatus {
+  PRESENT
+  TARDY
+  ABSENT
+  EXCUSED
+}
+
+enum UpdatedByRole {
+  SYSTEM
+  SCANNER
+  PRINCIPAL
+}
+
+// Extensible stubs for future phases
+model Teacher {
+  id       String    @id @default(uuid())
+  name     String
+  email    String    @unique
+  subjects Subject[]
+}
+
+model Subject {
+  id        String   @id @default(uuid())
+  name      String
+  grade     Int
+  group     String
+  teacherId String?
+  teacher   Teacher? @relation(fields: [teacherId], references: [id])
+}
