@@ -94,17 +94,25 @@ export async function getStudentAnalytics(schoolId: string, studentId: string) {
   const timezone = config?.timezone ?? 'America/Mexico_City';
   const { today, thirtyDaysAgo } = dateRange(timezone);
 
-  const records = await findRecordsByStudentAndDateRange(student.id, thirtyDaysAgo, today);
+  const sixtyDaysAhead = new Date(today.getTime() + 60 * 24 * 60 * 60 * 1000);
+  const [records, upcoming] = await Promise.all([
+    findRecordsByStudentAndDateRange(student.id, thirtyDaysAgo, today),
+    findRecordsByStudentAndDateRange(student.id, new Date(today.getTime() + 24 * 60 * 60 * 1000), sixtyDaysAhead),
+  ]);
 
   const tardy30 = records.filter((r) => r.status === 'TARDY').length;
   const absent30 = records.filter((r) => r.status === 'ABSENT').length;
 
-  const timeline = records.map((r) => ({
+  const toEntry = (r: (typeof records)[number]) => ({
     id: r.id,
     date: r.date.toISOString().split('T')[0],
     status: r.status,
     scanTimestamp: r.scanTimestamp?.toISOString() ?? null,
-  }));
+    note: r.note,
+    updatedByName: r.updatedByUser?.name ?? null,
+  });
+  const timeline = records.map(toEntry);
+  const upcomingExcuses = upcoming.filter((r) => r.status === 'EXCUSED').map(toEntry);
 
   return {
     student: {
@@ -118,6 +126,7 @@ export async function getStudentAnalytics(schoolId: string, studentId: string) {
       guardianWhatsApp: student.guardianWhatsApp,
     },
     timeline,
+    upcomingExcuses,
     ...riskFlags(tardy30, absent30),
   };
 }

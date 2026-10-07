@@ -29,3 +29,13 @@ export async function patchRecord(
 ): Promise<void> {
   await api.patch(`/api/v1/attendance/record/${recordId}`, { status, note });
 }
+
+export async function excuseInAdvance(input: {
+  studentId: string;
+  from: string;
+  to?: string;
+  reason: string;
+}): Promise<{ excused: string[]; skipped: string[] }> {
+  const { data } = await api.post('/api/v1/attendance/excuses', input);
+  return data;
+}

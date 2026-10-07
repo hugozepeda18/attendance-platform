@@ -102,13 +102,13 @@ Per `CLAUDE.md`, any task that adds UI or dependencies must first be added to `T
   - [x] **Bug:** if the WhatsApp send fails after the record is saved, the scan returns 500 and a retry gets 409. Now the failure is logged and the scan returns 201; the outbox with retries comes in Phase 15.
   - Done when: integration tests cover each rule row above, the after-cutoff scan per the decision, and scan with a failing notifier → 201.
 
-- [ ] **Phase 13b: Excuse in advance** *(S–M)*
+- [x] **Phase 13b: Excuse in advance** *(S–M)*
   - Flow (office staff or principal): search bar → student → "Justificar falta" → date (default today, optional "until" date) + reason (Cita médica / Enfermedad / Asunto familiar / free text) → save.
-  - [ ] `POST /api/v1/attendance/excuses { studentId, from, to?, reason }`: creates `EXCUSED` records (with note, `updatedByUserId`) for each school day in the range; today allowed only before the cutoff; existing records are left untouched (changing those stays PRINCIPAL-only).
-  - [ ] Roles: STAFF and PRINCIPAL can excuse in advance. Changing existing records stays PRINCIPAL-only.
-  - [ ] The absence run needs no change: it only marks students without a record, so excused students get no absence notice.
-  - [ ] If an excused student scans inside the window, the record becomes `PRESENT`/`TARDY` and the "entered school" message is sent; after the window, decision C applies.
-  - [ ] UI: "Justificar falta" button in the student modal; excused days show the reason, who registered it and when.
+  - [x] `POST /api/v1/attendance/excuses { studentId, from, to?, reason }`: creates `EXCUSED` records (with note, `updatedByUserId`) for each school day in the range; today allowed only before the cutoff; existing records are left untouched (changing those stays PRINCIPAL-only).
+  - [x] Roles: STAFF and PRINCIPAL can excuse in advance. Changing existing records stays PRINCIPAL-only.
+  - [x] The absence run needs no change: it only marks students without a record, so excused students get no absence notice.
+  - [x] If an excused student scans inside the window, the record becomes `PRESENT`/`TARDY` and the "entered school" message is sent; after the window, decision C applies.
+  - [x] UI: "Justificar falta" button in the student modal; excused days show the reason, who registered it and when.
   - Done when: tests show an excuse created at 07:30 → no ABSENT record and no message at the cutoff, a STAFF user can excuse but cannot change an existing record, and an excused student scanning at 08:40 → TARDY + entry message.
 
 - [ ] **Phase 14: Scan API v2 for real scanners** *(M)*

@@ -132,6 +132,7 @@ enum AttendanceStatus {
 enum UpdatedByRole {
   SYSTEM
   SCANNER
+  STAFF
   PRINCIPAL
   SUPERADMIN
 }

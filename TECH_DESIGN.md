@@ -67,7 +67,7 @@
   * `date`: Date (Date only without time: `YYYY-MM-DD`, indexed with studentId for uniqueness)
   * `scanTimestamp`: DateTime (Nullable, set when badge is scanned)
   * `status`: Enum (`PRESENT`, `TARDY`, `ABSENT`, `EXCUSED`)
-  * `updatedByRole`: Enum (`SYSTEM`, `SCANNER`, `PRINCIPAL`, `SUPERADMIN`)
+  * `updatedByRole`: Enum (`SYSTEM`, `SCANNER`, `STAFF`, `PRINCIPAL`, `SUPERADMIN`)
   * `updatedByUserId`: UUID (Nullable FK -> User.id; the person who made a manual override)
 * **Subject & Teacher (Extensible Schema Stubs for Future):**
   * `Teacher`: `id`, `name`, `email`
@@ -93,6 +93,10 @@
   * Deactivating a user, changing their role or resetting their password revokes their sessions immediately. A principal cannot deactivate or demote their own account.
   * `SCANNER`: scan only. `STAFF`: scan + search/analytics. `PRINCIPAL`: all of STAFF + manual overrides.
   * `SUPERADMIN`: platform owner. Signs in with a `PlatformAdmin` account at `admin.<platform domain>` (`POST /api/v1/auth/admin-login`); `SUPERADMIN_API_KEY` remains as an emergency/scripting fallback. Manages schools via `/api/v1/admin/*`; acts on a tenant's routes by sending `x-school-id`. Its overrides are recorded as `updatedByRole: SUPERADMIN`.
+* **Excuse in advance:**
+  * STAFF or PRINCIPAL (or SUPERADMIN) can excuse a student before the absence run: student window → "Excuse absence" → from / until (optional) + reason (quick choices Cita médica / Enfermedad / Asunto familiar, or free text).
+  * Creates `EXCUSED` records (note = reason, author recorded) for each weekday in the range (max 31 days; SEP holidays in Phase 18). Today only before the window closes; past days are rejected. Days that already have a record are skipped, never changed.
+  * The absence run skips excused students automatically (they have a record), so the guardian gets no absence notice.
 * **Role-Based Overrides:**
   * Only an authenticated `PRINCIPAL` (or `SUPERADMIN`) can manually alter an attendance record (e.g., changing `ABSENT` to `EXCUSED` or `PRESENT`). Staff cannot override.
 
@@ -117,6 +121,8 @@
 * `POST /api/v1/auth/login` `{ school: "<slug>", email, password }` → `{ token, expiresAt, user, school }`; 401 `INVALID_CREDENTIALS`, 403 `SCHOOL_INACTIVE`, 429 `TOO_MANY_ATTEMPTS`.
 * `POST /api/v1/auth/admin-login` `{ email, password }` → `{ token, expiresAt, admin }` (platform owner; same throttle).
 * `POST /api/v1/auth/logout` → 204 (revokes the current session).
+* `POST /api/v1/attendance/excuses` (STAFF/PRINCIPAL) `{ studentId, from: "YYYY-MM-DD", to?, reason }` → 201 `{ excused: [dates], skipped: [dates] }`; 400 `EXCUSE_NOT_ALLOWED`, 404 for another school's student.
+* `GET /api/v1/attendance/analytics/student/:id` timeline entries include `note` and `updatedByName`; response includes `upcomingExcuses` (next 60 days).
 * `GET /api/v1/me` → `{ role, school: { id, name, slug } | null, user: { id, name, email } | null }`
 * PRINCIPAL (or SUPERADMIN with `x-school-id`): `GET /api/v1/users`, `POST /api/v1/users` `{ email, name, role: STAFF|PRINCIPAL, password (10+) }`, `PATCH /api/v1/users/:id` `{ name?, role?, active?, password? }`. 409 `EMAIL_TAKEN`, 400 `SELF_LOCKOUT`.
 * Super-admin only (`Authorization: Bearer $SUPERADMIN_API_KEY`):

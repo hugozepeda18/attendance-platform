@@ -64,6 +64,17 @@ export async function findRecordsByStudentAndDateRange(
       studentId,
       date: { gte: startDate, lte: endDate },
     },
+    include: { updatedByUser: { select: { name: true } } },
     orderBy: { date: 'asc' },
+  });
+}
+
+// Inserts EXCUSED records; days that already have a record are skipped (unique studentId+date).
+export async function createExcusedRecords(
+  rows: { studentId: string; date: Date; note: string; updatedByRole: UpdatedByRole; updatedByUserId: string | null }[],
+) {
+  return prisma.attendanceRecord.createMany({
+    data: rows.map((r) => ({ ...r, status: AttendanceStatus.EXCUSED })),
+    skipDuplicates: true,
   });
 }

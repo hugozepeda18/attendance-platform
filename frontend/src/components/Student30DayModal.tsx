@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
-import { X, Phone, User, AlertTriangle, Clock } from 'lucide-react';
+import { X, Phone, User, AlertTriangle, Clock, CalendarCheck } from 'lucide-react';
 import { getStudentAnalytics } from '../services/attendance';
 import type { StudentAnalytics, TimelineEntry, AttendanceStatus, UserRole } from '../types';
 import StatusBadge from './StatusBadge';
 import OverrideModal from './OverrideModal';
+import ExcuseForm from './ExcuseForm';
 
 interface Props {
   studentId: string;
   role: UserRole;
   onClose: () => void;
+  onChanged: () => void; // a record was created/changed: lets the page behind refresh
   refreshKey: number;
 }
 
@@ -43,18 +45,23 @@ function buildCalendar(timeline: TimelineEntry[]): CalendarDay[] {
   return days;
 }
 
-export default function Student30DayModal({ studentId, role, onClose, refreshKey }: Props) {
+export default function Student30DayModal({ studentId, role, onClose, onChanged, refreshKey }: Props) {
   const [data, setData] = useState<StudentAnalytics | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [overrideEntry, setOverrideEntry] = useState<TimelineEntry | null>(null);
+  const [excusing, setExcusing] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const canExcuse = role === 'STAFF' || role === 'PRINCIPAL' || role === 'SUPERADMIN';
 
-  useEffect(() => {
+  function reload() {
     setIsLoading(true);
     getStudentAnalytics(studentId)
       .then(setData)
       .catch(() => setData(null))
       .finally(() => setIsLoading(false));
-  }, [studentId, refreshKey]);
+  }
+
+  useEffect(reload, [studentId, refreshKey]);
 
   if (!data && !isLoading) {
     return (
@@ -106,6 +113,41 @@ export default function Student30DayModal({ studentId, role, onClose, refreshKey
                   {data!.student.guardianWhatsApp} · {data!.student.credentialUid}
                 </div>
               </div>
+
+              {/* Excuse in advance */}
+              {canExcuse && !excusing && (
+                <div className="px-6 py-3 border-b border-slate-200 space-y-2">
+                  <button
+                    onClick={() => { setExcusing(true); setNotice(null); }}
+                    className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-purple-600 text-white text-sm font-medium hover:bg-purple-700"
+                  >
+                    <CalendarCheck size={16} /> Excuse absence
+                  </button>
+                  {notice && <p role="status" className="text-sm text-green-700">{notice}</p>}
+                </div>
+              )}
+              {excusing && (
+                <ExcuseForm
+                  studentId={studentId}
+                  onCancel={() => setExcusing(false)}
+                  onDone={(message) => { setExcusing(false); setNotice(message); onChanged(); }}
+                />
+              )}
+
+              {/* Upcoming excuses */}
+              {data!.upcomingExcuses.length > 0 && (
+                <div className="px-6 py-3 border-b border-slate-200">
+                  <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Upcoming excused days</h3>
+                  <ul className="space-y-1 text-sm">
+                    {data!.upcomingExcuses.map((e) => (
+                      <li key={e.id} className="flex justify-between gap-3 text-slate-700">
+                        <span>{e.date}</span>
+                        <span className="text-slate-500 text-right">{e.note}{e.updatedByName ? ` · ${e.updatedByName}` : ''}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               {/* Risk flags */}
               {(data!.isHabituallyTardy || data!.isChronicAbsentee) && (
@@ -195,7 +237,14 @@ export default function Student30DayModal({ studentId, role, onClose, refreshKey
                         key={e.id}
                         className="flex items-center justify-between text-sm py-1 border-b border-slate-100"
                       >
-                        <span className="text-slate-600">{e.date}</span>
+                        <span className="text-slate-600">
+                          {e.date}
+                          {e.note && (
+                            <span className="block text-xs text-slate-400">
+                              {e.note}{e.updatedByName ? ` · ${e.updatedByName}` : ''}
+                            </span>
+                          )}
+                        </span>
                         <div className="flex items-center gap-3">
                           <StatusBadge status={e.status} />
                           {role === 'PRINCIPAL' && (
@@ -225,11 +274,7 @@ export default function Student30DayModal({ studentId, role, onClose, refreshKey
           onClose={() => setOverrideEntry(null)}
           onComplete={() => {
             setOverrideEntry(null);
-            // Re-fetch student data
-            setIsLoading(true);
-            getStudentAnalytics(studentId)
-              .then(setData)
-              .finally(() => setIsLoading(false));
+            onChanged();
           }}
         />
       )}

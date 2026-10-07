@@ -103,6 +103,8 @@ export interface TimelineEntry {
   date: string;
   status: AttendanceStatus;
   scanTimestamp: string | null;
+  note: string | null;
+  updatedByName: string | null;
 }
 
 export interface StudentAnalytics {
@@ -117,6 +119,7 @@ export interface StudentAnalytics {
     guardianWhatsApp: string;
   };
   timeline: TimelineEntry[];
+  upcomingExcuses: TimelineEntry[];
   isHabituallyTardy: boolean;
   isChronicAbsentee: boolean;
 }

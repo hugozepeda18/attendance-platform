@@ -124,18 +124,11 @@ export default function App() {
           studentId={selectedStudentId}
           role={role}
           onClose={() => setSelectedStudentId(null)}
+          onChanged={() => setRefreshKey((k) => k + 1)}
           refreshKey={refreshKey}
-          // Re-fetch group view data after an override completes
         />
       )}
 
-      {/* Invisible refresh trigger: bumped after any override inside the modal */}
-      <span
-        id="refresh-trigger"
-        data-key={refreshKey}
-        onClick={() => setRefreshKey((k) => k + 1)}
-        className="hidden"
-      />
     </div>
   );
 }
