@@ -1,14 +1,16 @@
 # Local Environment Runbook
 
 ## Prerequisites
-* Docker & Docker Compose
+* Docker Desktop (running) & Docker Compose; nothing else listening on port 5432 (e.g. a Homebrew Postgres)
 * Node.js v20 LTS or higher
 * npm v10 or higher
+* Chrome or Firefox (they resolve `*.localhost` on their own; for other browsers add `127.0.0.1 norte.localhost sur.localhost admin.localhost` to `/etc/hosts`)
+
+Backend and frontend each keep a terminal busy, so use two.
 
 ## 1. Local Infrastructure Setup
 ```bash
-# Clone and enter directory
-cd attendance-system
+cd attendance-platform
 
 # Start PostgreSQL database container
 docker compose up -d
@@ -17,7 +19,7 @@ docker compose up -d
 docker compose ps
 ```
 
-## 2. Backend Initialization
+## 2. Backend Initialization (terminal 1)
 ```bash
 cd backend
 cp .env.example .env
@@ -25,19 +27,19 @@ cp .env.example .env
 # Install dependencies
 npm install
 
-# Run database schema migrations
-npx prisma migrate dev --name init
+# Apply the existing migrations (use `npx prisma migrate dev --name <change>` only when you change schema.prisma)
+npx prisma migrate deploy
 
-# Seed database with sample middle-school data (grades 1-3, groups A-C, students, cards)
+# Seed the dev data (safe to re-run; see "Dev data" below)
 npm run seed
 
 # Start backend service (Runs on http://localhost:4000)
 npm run dev
 ```
 
-## 3. Frontend Initialization
+## 3. Frontend Initialization (terminal 2)
 ```bash
-cd ../frontend
+cd frontend
 cp .env.example .env
 
 # Install dependencies
@@ -46,12 +48,19 @@ npm install
 # Start Vite dev server (Runs on http://localhost:5173)
 npm run dev
 ```
+Open **http://norte.localhost:5173** (a school's own address, not plain `localhost:5173`) and sign in as `principal@norte.test` / `dev-password-123`.
+
+### Dev data
+The seed creates two schools (Norte, Sur), each with grades 1–3, groups A–B, 5 students per group (30 per school), badges `CARD-<grade><group>-<nn>` (e.g. `CARD-1A-01`) and a guardian WhatsApp number per student; a principal and a staff user per school; the platform owner; and the dev device keys (table in §5).
+It also creates the **last 30 school days of attendance** (weekdays, skipping 16 Sep): mostly PRESENT, some TARDY, a few ABSENT and EXCUSED, with every 7th student ("problem" student) tardy or absent more often. **Today stays empty** so you can scan live (curl in §5, or the gate program in §6); after the school's cutoff (08:30 by default) the absence job marks everyone not scanned as ABSENT.
+Until Phase 15, WhatsApp messages are only printed in the backend terminal.
 
 ## 4. Verification & Testing Suite (Agent Execution Loop)
 ```bash
 # In /backend:
 npm run lint
-npm test
+npm test   # uses the same database as the dev server: it deletes all attendance records,
+           # scans and every school except Norte/Sur. Run `npm run seed` afterwards to get the history back.
 
 # In /frontend:
 npm run build
@@ -118,7 +127,7 @@ It asks for the server URL (`https://api.<your domain>/api/v1`), the gate's SCAN
 * **Support:** `gate.log` next to the exe; `gate.db` holds every scan (`sent=0` pending, `1` uploaded, `-1` dropped/rejected with the reason in `server`). Ctrl+Q closes the screen.
 * **Releasing a new version:** bump `VERSION` in `gate.py`, build, set `GATE_LATEST_VERSION` on the server; old gates show "Actualización disponible" until the exe is replaced.
 * **Retiring a gate PC:** revoke its key, or the school's absence run waits 30 min every day for it (Phase 14).
-* Try it on a Mac/Linux dev machine: `cd gate && cp gate.ini.example gate.ini` (set `server_url = http://localhost:4000/api/v1`, `api_key = ak_dev_north_scanner`, `fullscreen = no`), then `python3 gate.py` and type a badge such as `CARD-1A-01` + Enter. Self-check: `python3 gate/test_gate.py`.
+* Try it on a Mac/Linux dev machine: `cd gate && cp gate.ini.example gate.ini` (set `server_url = http://localhost:4000/api/v1`, `api_key = ak_dev_north_scanner`, `fullscreen = no`), then `python3 gate.py` and type a badge such as `CARD-1A-01` + Enter. Self-check: `python3 gate/test_gate.py`. Needs Python with tkinter (python.org installer has it; Homebrew: `brew install python-tk`).
 
 ## 7. Super-Admin Operations (Platform Owner)
 Day to day, use the dashboard at `admin.<your domain>`: create schools (with their first principal), edit schedules, rename addresses, deactivate, issue/revoke device keys and manage users.
