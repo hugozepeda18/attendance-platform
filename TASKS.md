@@ -76,3 +76,9 @@ Rules for the Agent:
   - [x] `School.slug` (subdomain per school); `User` + `Session` models; email/password login (Node `crypto.scrypt`), opaque session tokens, login throttle.
   - [x] Overrides record the acting user (`updatedByUserId`); principals manage their school's staff accounts (`/api/v1/users`).
   - [x] Frontend: school detected from subdomain, email/password sign-in, logout, Staff page for principals; API keys remain for scanner devices.
+
+- [x] **Phase 12: Platform Admin Dashboard**
+  - [x] `PlatformAdmin` accounts with email/password sessions; `npm run create-admin`.
+  - [x] Absence job: per-minute tick reading schools from the DB (no restart needed for new/edited/deactivated schools).
+  - [x] Admin API: school detail, editable settings, atomic create with first principal.
+  - [x] Dashboard at `admin.<domain>`: schools list, new school, school detail (settings, status, keys, users).

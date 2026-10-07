@@ -2,26 +2,27 @@ import { useEffect, useState, type FormEvent } from 'react';
 import axios from 'axios';
 import { GraduationCap } from 'lucide-react';
 import type { Me } from '../types';
-import { getMe, getPublicSchool, login } from '../services/auth';
+import { adminLogin, getMe, getPublicSchool, login } from '../services/auth';
 import { schoolSlugFromHost } from '../services/school';
 import { setToken, clearToken } from '../services/session';
 
 interface Props {
   onSignedIn: (me: Me) => void;
+  admin?: boolean; // platform owner sign-in at admin.<domain>
 }
 
 const slug = schoolSlugFromHost();
 
-export default function SignIn({ onSignedIn }: Props) {
-  const [schoolName, setSchoolName] = useState<string | null>(null);
-  const [schoolMissing, setSchoolMissing] = useState(slug === null);
+export default function SignIn({ onSignedIn, admin = false }: Props) {
+  const [schoolName, setSchoolName] = useState<string | null>(admin ? 'Platform admin' : null);
+  const [schoolMissing, setSchoolMissing] = useState(!admin && slug === null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!slug) return;
+    if (admin || !slug) return;
     getPublicSchool(slug)
       .then((s) => setSchoolName(s.name))
       .catch(() => setSchoolMissing(true));
@@ -29,11 +30,11 @@ export default function SignIn({ onSignedIn }: Props) {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!slug) return;
+    if (!admin && !slug) return;
     setError(null);
     setLoading(true);
     try {
-      setToken(await login(slug, email.trim(), password));
+      setToken(admin ? await adminLogin(email.trim(), password) : await login(slug!, email.trim(), password));
       onSignedIn(await getMe());
     } catch (err) {
       clearToken();

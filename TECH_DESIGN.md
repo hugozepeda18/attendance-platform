@@ -42,7 +42,8 @@
 * **Multi-tenancy (SaaS):** Shared database, row-level tenancy. Each school is a `School` tenant; the platform owner is the `SUPERADMIN`.
 * **School:** `id`, `slug` (unique; the school's subdomain, e.g. `sec-12` → `sec-12.<platform domain>`), `name`, `active` (deactivated schools are locked out), `createdAt`.
 * **User:** `id`, `schoolId`, `email` (unique per school, stored lowercase), `name`, `role` (`STAFF | PRINCIPAL`), `passwordHash` (Node `crypto.scrypt`, salted), `active`, `createdAt`. People sign in; devices use `ApiKey`.
-* **Session:** `id`, `userId`, `tokenHash` (sha256 of an opaque `st_` token), `createdAt`, `expiresAt` (12 h), `revokedAt`.
+* **PlatformAdmin:** `id`, `email` (unique), `name`, `passwordHash`, `active`, `createdAt`. The platform owner's sign-in account (role `SUPERADMIN`), not tied to a school. Created with `npm run create-admin`.
+* **Session:** `id`, `userId` *or* `adminId` (DB CHECK: exactly one), `tokenHash` (sha256 of an opaque `st_` token), `createdAt`, `expiresAt` (12 h), `revokedAt`.
 * **ApiKey:** `id`, `schoolId`, `role` (`SCANNER | STAFF | PRINCIPAL`), `label`, `keyHash` (sha256; plaintext shown once), `createdAt`, `revokedAt`.
 * `SchoolConfig` (one per school, `schoolId` unique), `Student`, `Teacher`, `Subject` carry `schoolId`. `credentialUid` and teacher `email` are unique **per school**. `AttendanceRecord` is scoped through its student.
 * **SchoolConfig:**
@@ -79,7 +80,7 @@
   * Evaluate arrival timestamp against `SchoolConfig.schoolStartTime` + `tardyGraceMinutes`. If after grace, assign `TARDY`; otherwise `PRESENT`.
   * Send immediate "Student entered school" WhatsApp notification to the student's guardian.
 * **Automated Absence Evaluator (`node-cron`):**
-  * Runs every school morning at `schoolStartTime + absenceCutoffMinutes`, scheduled **per active school** in that school's timezone (schedules are built at server start).
+  * Runs every school morning at `schoolStartTime + absenceCutoffMinutes` in each school's timezone. Implemented as one `node-cron` tick per minute that re-reads active schools from the DB and evaluates those whose cutoff is now, so new schools, edited settings and deactivations apply without a restart. A tick missed while the server is down is not replayed.
   * Finds all active students without an `AttendanceRecord` for today.
   * Inserts an `ABSENT` record for each missing student.
   * Emits automated "Unexcused Absence Alert" WhatsApp messages to respective guardians.
@@ -89,7 +90,7 @@
   * Login is throttled: 5 failed attempts per school+email lock that pair for 15 minutes (in-memory, per backend process).
   * Deactivating a user, changing their role or resetting their password revokes their sessions immediately. A principal cannot deactivate or demote their own account.
   * `SCANNER`: scan only. `STAFF`: scan + search/analytics. `PRINCIPAL`: all of STAFF + manual overrides.
-  * `SUPERADMIN` (env `SUPERADMIN_API_KEY`): platform owner. Manages schools via `/api/v1/admin/*`; acts on a tenant's routes by sending `x-school-id`. Its overrides are recorded as `updatedByRole: SUPERADMIN`.
+  * `SUPERADMIN`: platform owner. Signs in with a `PlatformAdmin` account at `admin.<platform domain>` (`POST /api/v1/auth/admin-login`); `SUPERADMIN_API_KEY` remains as an emergency/scripting fallback. Manages schools via `/api/v1/admin/*`; acts on a tenant's routes by sending `x-school-id`. Its overrides are recorded as `updatedByRole: SUPERADMIN`.
 * **Role-Based Overrides:**
   * Only an authenticated `PRINCIPAL` (or `SUPERADMIN`) can manually alter an attendance record (e.g., changing `ABSENT` to `EXCUSED` or `PRESENT`). Staff cannot override.
 
@@ -111,12 +112,18 @@
   * Returns 401 without a valid token, 403 for non-PRINCIPAL roles, 404 for records of another school.
 * `GET /api/v1/public/schools/:slug` (no auth) → `{ name }`; 404 if unknown or inactive.
 * `POST /api/v1/auth/login` `{ school: "<slug>", email, password }` → `{ token, expiresAt, user, school }`; 401 `INVALID_CREDENTIALS`, 403 `SCHOOL_INACTIVE`, 429 `TOO_MANY_ATTEMPTS`.
+* `POST /api/v1/auth/admin-login` `{ email, password }` → `{ token, expiresAt, admin }` (platform owner; same throttle).
 * `POST /api/v1/auth/logout` → 204 (revokes the current session).
 * `GET /api/v1/me` → `{ role, school: { id, name, slug } | null, user: { id, name, email } | null }`
 * PRINCIPAL (or SUPERADMIN with `x-school-id`): `GET /api/v1/users`, `POST /api/v1/users` `{ email, name, role: STAFF|PRINCIPAL, password (10+) }`, `PATCH /api/v1/users/:id` `{ name?, role?, active?, password? }`. 409 `EMAIL_TAKEN`, 400 `SELF_LOCKOUT`.
 * Super-admin only (`Authorization: Bearer $SUPERADMIN_API_KEY`):
   * `POST /api/v1/admin/schools` `{ name, slug, schoolStartTime?, tardyGraceMinutes?, absenceCutoffMinutes?, timezone? }` → 201 `{ school, apiKeys: [{ role, key }] }` (keys shown once)
-  * `GET /api/v1/admin/schools` → `{ schools: [{ id, name, active, timezone, studentCount }] }`
-  * `PATCH /api/v1/admin/schools/:id` `{ active?, slug? }` (409 `SLUG_TAKEN`)
+  * `POST /api/v1/admin/schools` also accepts `principal: { email, name, password }`; school, config, keys and principal are created atomically.
+  * `GET /api/v1/admin/schools` → `{ schools: [{ id, name, slug, active, timezone, studentCount }] }`
+  * `GET /api/v1/admin/schools/:id` → `{ id, name, slug, active, config, studentCount, userCount, activeKeyCount }`
+  * `PATCH /api/v1/admin/schools/:id` `{ active?, slug?, name?, schoolStartTime?, tardyGraceMinutes?, absenceCutoffMinutes?, timezone? }` (409 `SLUG_TAKEN`)
   * `GET|POST /api/v1/admin/schools/:id/keys` (`POST` body `{ role, label }` → plaintext key once), `DELETE /api/v1/admin/schools/:id/keys/:keyId` (revoke)
 * Error codes: `401 UNAUTHENTICATED`, `403 FORBIDDEN | SCHOOL_INACTIVE`, `400 SCHOOL_REQUIRED` (super-admin without `x-school-id`).
+## 6. Platform Admin Dashboard
+* Served by the same frontend at `admin.<platform domain>` (`admin` is a reserved slug). `main.tsx` renders `AdminApp` when the subdomain is `admin`.
+* Screens: schools list (search), new school (settings + first principal; shows the school link and device keys once), school detail (activate/deactivate, rename address, schedule settings, device keys issue/revoke, users via `/api/v1/users` with `x-school-id`).

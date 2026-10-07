@@ -5,6 +5,7 @@ import { createUser, listUsers, updateUser } from '../services/users';
 
 interface Props {
   currentUserId: string | null;
+  schoolId?: string; // set when the platform admin manages a school's users
 }
 
 const inputClass =
@@ -14,17 +15,17 @@ function apiMessage(err: unknown, fallback: string): string {
   return (axios.isAxiosError(err) && err.response?.data?.message) || fallback;
 }
 
-export default function StaffView({ currentUserId }: Props) {
+export default function StaffView({ currentUserId, schoolId }: Props) {
   const [users, setUsers] = useState<SchoolUser[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({ name: '', email: '', role: 'STAFF' as PersonRole, password: '' });
   const [resetFor, setResetFor] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState('');
 
-  const reload = () => listUsers().then(setUsers).catch(() => setError('Failed to load staff.'));
+  const reload = () => listUsers(schoolId).then(setUsers).catch(() => setError('Failed to load staff.'));
   useEffect(() => {
     reload();
-  }, []);
+  }, [schoolId]);
 
   async function run(action: () => Promise<void>, fallback: string) {
     setError(null);
@@ -39,7 +40,7 @@ export default function StaffView({ currentUserId }: Props) {
   function handleCreate(e: FormEvent) {
     e.preventDefault();
     run(async () => {
-      await createUser({ ...form, email: form.email.trim() });
+      await createUser({ ...form, email: form.email.trim() }, schoolId);
       setForm({ name: '', email: '', role: 'STAFF', password: '' });
     }, 'Could not create the user.');
   }
@@ -47,7 +48,7 @@ export default function StaffView({ currentUserId }: Props) {
   function handleReset(e: FormEvent, id: string) {
     e.preventDefault();
     run(async () => {
-      await updateUser(id, { password: newPassword });
+      await updateUser(id, { password: newPassword }, schoolId);
       setResetFor(null);
       setNewPassword('');
     }, 'Could not reset the password.');
@@ -111,7 +112,7 @@ export default function StaffView({ currentUserId }: Props) {
                       </button>
                       {u.id !== currentUserId && (
                         <button
-                          onClick={() => run(() => updateUser(u.id, { active: !u.active }), 'Could not update the user.')}
+                          onClick={() => run(() => updateUser(u.id, { active: !u.active }, schoolId), 'Could not update the user.')}
                           className={u.active ? 'text-red-600 font-medium' : 'text-green-600 font-medium'}
                         >
                           {u.active ? 'Deactivate' : 'Activate'}

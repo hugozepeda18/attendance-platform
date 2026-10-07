@@ -7,6 +7,43 @@ export interface Me {
   user: { id: string; name: string; email: string } | null;
 }
 
+export interface SchoolConfig {
+  schoolStartTime: string;
+  tardyGraceMinutes: number;
+  absenceCutoffMinutes: number;
+  timezone: string;
+}
+
+export interface SchoolSummary {
+  id: string;
+  name: string;
+  slug: string;
+  active: boolean;
+  createdAt: string;
+  timezone: string | null;
+  studentCount: number;
+}
+
+export interface SchoolDetail {
+  id: string;
+  name: string;
+  slug: string;
+  active: boolean;
+  createdAt: string;
+  config: SchoolConfig | null;
+  studentCount: number;
+  userCount: number;
+  activeKeyCount: number;
+}
+
+export interface ApiKeyInfo {
+  id: string;
+  role: 'SCANNER' | 'STAFF' | 'PRINCIPAL';
+  label: string;
+  createdAt: string;
+  revokedAt: string | null;
+}
+
 export interface SchoolUser {
   id: string;
   email: string;

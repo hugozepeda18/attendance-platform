@@ -6,3 +6,9 @@ export function schoolSlugFromHost(host: string = window.location.hostname): str
   const minParts = parts[parts.length - 1] === 'localhost' ? 2 : 3;
   return parts.length >= minParts ? parts[0] : null;
 }
+
+// From the admin dashboard (admin.<domain>), the address of a school's own page.
+export function schoolUrl(slug: string): string {
+  const { protocol, host } = window.location;
+  return `${protocol}//${slug}.${host.replace(/^admin\./i, '')}`;
+}

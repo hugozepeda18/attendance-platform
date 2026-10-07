@@ -65,7 +65,7 @@ The dev seed creates two schools that share badge IDs:
 | Secundaria Demo Norte (`norte`) | http://norte.localhost:5173 | `principal@norte.test`, `staff@norte.test` | `ak_dev_north_{scanner,staff,principal}` |
 | Secundaria Demo Sur (`sur`) | http://sur.localhost:5173 | `principal@sur.test`, `staff@sur.test` | `ak_dev_south_{scanner,staff,principal}` |
 
-The super-admin key is `SUPERADMIN_API_KEY` (`ak_dev_superadmin`). Plain `http://localhost:5173` has no school and shows "School not found".
+The platform admin dashboard is at **http://admin.localhost:5173** (dev owner: `owner@platform.test` / `dev-password-123`). The emergency super-admin key is `SUPERADMIN_API_KEY` (`ak_dev_superadmin`). Plain `http://localhost:5173` has no school and shows "School not found".
 
 ```bash
 # Simulate student scanning at the gate (On-time)
@@ -92,6 +92,14 @@ curl -i -X POST http://localhost:4000/api/v1/attendance/scan \
 ```
 
 ## 6. Super-Admin Operations (Platform Owner)
+Day to day, use the dashboard at `admin.<your domain>`: create schools (with their first principal), edit schedules, rename addresses, deactivate, issue/revoke device keys and manage users.
+
+Create your owner account (prints a random password once; re-running resets it and signs out old sessions):
+```bash
+cd backend && npm run create-admin -- you@example.com "Your Name"
+```
+
+The same operations by API (scripts/emergencies), using the fallback key:
 ```bash
 ADMIN="Authorization: Bearer $SUPERADMIN_API_KEY"
 
@@ -122,6 +130,4 @@ curl "http://localhost:4000/api/v1/attendance/search?query=1-A" -H "$ADMIN" -H "
 # Direct database access (owner only)
 cd backend && npx prisma studio
 ```
-Restart the backend after onboarding a school so its absence job gets scheduled.
-
 **Production:** point a wildcard DNS record (`*.<your domain>`) and a wildcard TLS certificate at the frontend; set `SUPERADMIN_API_KEY` to a long random value (`openssl rand -base64 32`), never run the seed (it refuses when `NODE_ENV=production`), and change the default Postgres credentials in `docker-compose.yml`.
