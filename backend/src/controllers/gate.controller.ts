@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import { recordHeartbeat } from '../repositories/school.repository';
+import { getGateRoster } from '../services/gate.service';
+import { schoolIdOf } from '../middleware/auth';
 
 const HeartbeatSchema = z.object({ pending: z.number().int().min(0) });
 
@@ -17,5 +19,10 @@ export async function heartbeat(req: Request, res: Response): Promise<void> {
     return;
   }
   await recordHeartbeat(apiKeyId, parsed.data.pending);
-  res.json({ serverTime: new Date().toISOString() });
+  // GATE_LATEST_VERSION: set it when a new gate.exe is released; gates on another version show "Actualización disponible".
+  res.json({ serverTime: new Date().toISOString(), latestGateVersion: process.env.GATE_LATEST_VERSION ?? null });
+}
+
+export async function roster(req: Request, res: Response): Promise<void> {
+  res.json(await getGateRoster(schoolIdOf(req)));
 }

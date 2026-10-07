@@ -26,6 +26,7 @@
   │   └── tests/
   │       ├── unit/
   │       └── integration/
+  ├── gate/                 # Windows gate client (Python stdlib, one .exe), see §7
   ├── frontend/
   │   ├── src/
   │   │   ├── components/       # UI building blocks (charts, tables, search bar)
@@ -118,7 +119,8 @@
   * Body: `{ "sentAt": ISO, "events": [{ "eventId", "credentialUid", "scannedAt": ISO }] }` (1–500 events)
   * Response 200: `{ "results": [{ "eventId", "result": "PRESENT|TARDY|ALREADY_SCANNED|OUTSIDE_WINDOW|NOT_FOUND", "studentName", "grade", "group", "scannedAt", "clockSkew" }] }`, one per event, in order. Safe to resend.
 * `POST /api/v1/gate/heartbeat` (SCANNER key only), every minute
-  * Body: `{ "pending": 0 }` → `{ "serverTime": ISO }`
+  * Body: `{ "pending": 0 }` → `{ "serverTime": ISO, "latestGateVersion": string | null }` (env `GATE_LATEST_VERSION`; a gate on another version shows "Actualización disponible")
+* `GET /api/v1/gate/roster` (SCANNER key only), hourly → `{ serverTime, utcOffsetMinutes, schoolStartTime, tardyGraceMinutes, absenceCutoffMinutes, dropLeadingZeros, students: [{ credentialUid, name, grade, group }] }`. No guardian data leaves the server.
 * `GET /api/v1/attendance/search?query=...`
   * Query parameters: `query` (can match student name, group like `"1-A"`, grade `"1"`, or teacher name).
   * Returns: List of matching students with current status and 30-day attendance overview.
@@ -149,3 +151,11 @@
 ## 6. Platform Admin Dashboard
 * Served by the same frontend at `admin.<platform domain>` (`admin` is a reserved slug). `main.tsx` renders `AdminApp` when the subdomain is `admin`.
 * Screens: schools list (search), new school (settings + first principal; shows the school link and device keys once), school detail (activate/deactivate, rename address, schedule settings, device keys issue/revoke, users via `/api/v1/users` with `x-school-id`).
+
+## 7. Gate Client (`gate/`)
+* `gate.py`: Python 3.8+ standard library only (`tkinter`, `sqlite3`, `urllib`, `winsound`), built into one `gate.exe` with PyInstaller (`build.ps1`, 32-bit Python 3.8 so it runs on Windows 7). `gate-setup.ps1` writes `gate.ini`, adds autostart, disables sleep, enables time sync and a Defender exclusion.
+* Store-first: each scan is inserted into `gate.db` (SQLite) before the screen answers. The answer comes from the cached roster (`GET /gate/roster`, kept on disk): green Bienvenido / amber Retardo / blue Ya registrado / red Credencial no encontrada / red Fuera de horario, beep, cleared after 3 s. Without a roster yet (first start offline) it shows grey "Registrado" and the server decides.
+* A background thread uploads the queue to `POST /attendance/scans` (≤ 200 per batch, 3 s timeout, backoff 2→60 s, woken by each scan), sends the heartbeat every minute and refreshes the roster hourly. The server's `serverTime` gives the clock offset used for the on-screen verdict; uploads send raw PC time + `sentAt` and the server corrects.
+* Scans older than 20 h are dropped and logged instead of sent (the server would take them as today). A batch rejected with 400 is set aside (kept in `gate.db`) so it cannot block the queue. 401/403 shows "Clave de escáner inválida".
+* Orange banner "Sin conexión, N pendientes" while uploads fail. `gate.log` rotates (3 × 1 MB). Ctrl+Q exits.
+

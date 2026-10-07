@@ -138,19 +138,20 @@ Per `CLAUDE.md`, any task that adds UI or dependencies must first be added to `T
   - [ ] Validate guardian phones as E.164 on create/import.
   - Done when: the outbox survives a backend restart mid-send (no lost or duplicate messages), and a failing provider retries and then marks `FAILED`.
 
-- [ ] **Phase 16: Gate scanner client (Windows, Python)** *(M)* — see "Scanner client plan" below
-  - [ ] Python, **standard library only** (`sqlite3`, `urllib`, `tkinter`, `winsound`, `uuid`, `threading`), built for Python 3.8 so it also runs on Windows 7; shipped as one `.exe` (PyInstaller) that starts with Windows.
-  - [ ] Store-first: every scan is written to local SQLite (`eventId`, `credentialUid`, `scannedAt`) before anything else.
-  - [ ] Instant feedback from a local roster cache (name + badge only, refreshed hourly): full-screen green PRESENT / amber TARDY / blue already scanned / red unknown, plus a beep.
-  - [ ] Background sender: uploads the queue in batches (3 s timeout, exponential backoff), sends `sentAt` for clock correction, heartbeat every minute. No separate connection test (the upload itself is the test).
-  - [ ] On-screen banner when offline: "Sin conexión, N pendientes".
-  - [ ] Config file: school URL + SCANNER key. `gate-setup.ps1`: autostart, disable sleep, enable Windows time sync.
-  - [ ] Packaging the `.exe`: PyInstaller one-file build script in the repo (`gate/build.ps1`); version shown on screen; local rotating log file for support.
-  - [ ] Antivirus/SmartScreen: unsigned PyInstaller executables are often flagged. Start with a documented "allow" step in setup; buy a code-signing certificate once several schools run it.
-  - [ ] Updates: the server reports the latest gate version in the heartbeat response; the screen shows "Actualización disponible". Manual replace for now; auto-update only if school count makes it worth it.
-  - [ ] After-cutoff scan: red "Fuera de horario, acude a dirección" with a distinct beep (Phase 13 decision C).
+- [ ] **Phase 16: Gate scanner client (Windows, Python)** *(M)* — code done 2026-10-07; open: Windows build + hardware pilot — see "Scanner client plan" below
+  - [x] Python, **standard library only** (`sqlite3`, `urllib`, `tkinter`, `winsound`, `uuid`, `threading`), built for Python 3.8 so it also runs on Windows 7; shipped as one `.exe` (PyInstaller) that starts with Windows.
+  - [x] Store-first: every scan is written to local SQLite (`eventId`, `credentialUid`, `scannedAt`) before anything else.
+  - [x] Instant feedback from a local roster cache (name + badge only, refreshed hourly): full-screen green PRESENT / amber TARDY / blue already scanned / red unknown, plus a beep.
+  - [x] Background sender: uploads the queue in batches (3 s timeout, exponential backoff), sends `sentAt` for clock correction, heartbeat every minute. No separate connection test (the upload itself is the test).
+  - [x] On-screen banner when offline: "Sin conexión, N pendientes".
+  - [x] Config file: school URL + SCANNER key. `gate-setup.ps1`: autostart, disable sleep, enable Windows time sync.
+  - [x] Packaging the `.exe`: PyInstaller one-file build script in the repo (`gate/build.ps1`); version shown on screen; local rotating log file for support.
+  - [x] Antivirus/SmartScreen: unsigned PyInstaller executables are often flagged. Start with a documented "allow" step in setup; buy a code-signing certificate once several schools run it.
+  - [x] Updates: the server reports the latest gate version in the heartbeat response; the screen shows "Actualización disponible". Manual replace for now; auto-update only if school count makes it worth it.
+  - [x] After-cutoff scan: red "Fuera de horario, acude a dirección" with a distinct beep (Phase 13 decision C).
   - Readers are **USB keyboard-type** (confirmed 2026-10-07): the reader types the code + Enter into the focused `tkinter` window. No serial support needed.
-  - Done when: a pilot with real hardware passes 50 scans online, cable unplugged, 20 scans, reconnect; every scan gets the correct status and exactly one WhatsApp each.
+  - Notes: roster comes from `GET /gate/roster` (badge, name, grade, group; no guardian data). Scans older than 20 h are dropped on the PC, not sent (the server would count them as today). Verified headless with Python 3.8 and live against the dev server (13 scans online/offline/reconnect, 11 messages, one per guardian, resend changed nothing). **Not yet run:** `build.ps1` and `gate-setup.ps1` on a real Windows PC.
+  - [ ] Done when: a pilot with real hardware passes 50 scans online, cable unplugged, 20 scans, reconnect; every scan gets the correct status and exactly one WhatsApp each.
 
 - [ ] **Phase 17: Student roster management** *(M)*
   - [ ] `Student.active` (withdrawn students stop being marked absent).

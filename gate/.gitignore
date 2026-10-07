@@ -1,0 +1,7 @@
+gate.ini
+gate.db*
+gate.log*
+build/
+dist/
+*.spec
+__pycache__/

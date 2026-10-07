@@ -103,7 +103,24 @@ curl -i -X POST http://localhost:4000/api/v1/attendance/scan \
   -H "Content-Type: application/json" -d '{"credentialUid": "CARD-1A-01"}'
 ```
 
-## 6. Super-Admin Operations (Platform Owner)
+## 6. Gate PC (Windows scanner client)
+Build (on any Windows PC with 32-bit Python 3.8 installed: `py -3.8-32`):
+```powershell
+cd gate
+powershell -ExecutionPolicy Bypass -File build.ps1   # runs the self-check, then makes dist\gate.exe
+```
+Install on the gate PC: copy `gate.exe` and `gate-setup.ps1` into `C:\Asistencia`, then as Administrator:
+```powershell
+powershell -ExecutionPolicy Bypass -File C:\Asistencia\gate-setup.ps1
+```
+It asks for the server URL (`https://api.<your domain>/api/v1`), the gate's SCANNER key (issue one per gate in the admin dashboard) and a label. Plug in the USB reader and restart.
+* **Antivirus:** the exe is unsigned, so SmartScreen may show "Windows protected your PC" → *More info* → *Run anyway*. The setup adds a Defender exclusion; with another antivirus (or on Windows 7) add `C:\Asistencia` as an exception by hand.
+* **Support:** `gate.log` next to the exe; `gate.db` holds every scan (`sent=0` pending, `1` uploaded, `-1` dropped/rejected with the reason in `server`). Ctrl+Q closes the screen.
+* **Releasing a new version:** bump `VERSION` in `gate.py`, build, set `GATE_LATEST_VERSION` on the server; old gates show "Actualización disponible" until the exe is replaced.
+* **Retiring a gate PC:** revoke its key, or the school's absence run waits 30 min every day for it (Phase 14).
+* Try it on a Mac/Linux dev machine: `cd gate && cp gate.ini.example gate.ini` (set `server_url = http://localhost:4000/api/v1`, `api_key = ak_dev_north_scanner`, `fullscreen = no`), then `python3 gate.py` and type a badge such as `CARD-1A-01` + Enter. Self-check: `python3 gate/test_gate.py`.
+
+## 7. Super-Admin Operations (Platform Owner)
 Day to day, use the dashboard at `admin.<your domain>`: create schools (with their first principal), edit schedules, rename addresses, deactivate, issue/revoke device keys and manage users.
 
 Create your owner account (prints a random password once; re-running resets it and signs out old sessions):

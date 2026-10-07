@@ -1,0 +1,10 @@
+; Copy to gate.ini next to gate.exe (gate-setup.ps1 does it for you).
+[gate]
+; The school's API, ending in /api/v1
+server_url = https://api.example.com/api/v1
+; SCANNER key for this gate (Admin dashboard -> school -> device keys). Keep it secret.
+api_key = ak_xxxxxxxxxxxxxxxx
+; Shown in the corner of the screen and in the log
+label = Entrada principal
+; no = normal window (for testing)
+fullscreen = yes

@@ -46,3 +46,11 @@ export async function findStudentsByName(schoolId: string, query: string) {
     orderBy: [{ grade: 'asc' }, { group: 'asc' }, { lastName: 'asc' }],
   });
 }
+
+// Badge → name list cached by the gate PC for instant offline feedback.
+export async function listRosterForGate(schoolId: string) {
+  return prisma.student.findMany({
+    where: { schoolId },
+    select: { credentialUid: true, firstName: true, lastName: true, grade: true, group: true },
+  });
+}

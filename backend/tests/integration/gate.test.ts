@@ -159,6 +159,41 @@ describe('POST /gate/heartbeat', () => {
     await request(app).post('/api/v1/gate/heartbeat').set(auth(KEYS.superadmin)).set('x-school-id', NORTH).send({ pending: 0 }).expect(400);
     await heartbeat(KEYS.northScanner, -1).expect(400);
   });
+
+  it('reports the latest gate version so old gates show "Actualización disponible"', async () => {
+    process.env.GATE_LATEST_VERSION = '1.2.0';
+    try {
+      expect((await heartbeat(KEYS.northScanner, 0)).body.latestGateVersion).toBe('1.2.0');
+    } finally {
+      delete process.env.GATE_LATEST_VERSION;
+    }
+    expect((await heartbeat(KEYS.northScanner, 0)).body.latestGateVersion).toBeNull();
+  });
+});
+
+describe('GET /gate/roster', () => {
+  const roster = (key: string) => request(app).get('/api/v1/gate/roster').set(auth(key));
+
+  it("gives the gate its school's badges, names and window for offline feedback", async () => {
+    const res = await roster(KEYS.northScanner).expect(200);
+    expect(res.body).toMatchObject({
+      serverTime: mx('07:55'),
+      utcOffsetMinutes: -360,
+      schoolStartTime: '08:00',
+      tardyGraceMinutes: 10,
+      absenceCutoffMinutes: 30,
+      dropLeadingZeros: false,
+    });
+    expect(res.body.students).toContainEqual({ credentialUid: 'CARD-1A-01', name: expect.any(String), grade: 1, group: 'A' });
+    expect(res.body.students).toHaveLength(await prisma.student.count({ where: { schoolId: NORTH } }));
+    expect(Object.keys(res.body.students[0]).sort()).toEqual(['credentialUid', 'grade', 'group', 'name']); // no guardian phone on the gate PC
+  });
+
+  it('only gate scanner keys may download the roster', async () => {
+    await roster(KEYS.northStaff).expect(403);
+    await roster(KEYS.northPrincipal).expect(403);
+    await request(app).get('/api/v1/gate/roster').expect(401);
+  });
 });
 
 describe('Absence run waits for gates', () => {
@@ -216,6 +251,22 @@ describe('Tenant isolation', () => {
       expect(south.body.results[0].result).toBe('PRESENT');
     } finally {
       await prisma.attendanceRecord.deleteMany({ where: { studentId: southOnly.id } });
+      await prisma.student.delete({ where: { id: southOnly.id } });
+    }
+  });
+
+  it("a gate only gets its own school's roster, in its own timezone", async () => {
+    const southOnly = await prisma.student.create({
+      data: { schoolId: SOUTH, credentialUid: 'SOUTH-ONLY-2', firstName: 'Sur', lastName: 'Only', grade: 1, group: 'A', guardianName: 'G', guardianWhatsApp: '+520000000001' },
+    });
+    try {
+      const north = await request(app).get('/api/v1/gate/roster').set(auth(KEYS.northScanner));
+      const south = await request(app).get('/api/v1/gate/roster').set(auth(KEYS.southScanner));
+      expect(north.body.students.map((s: { credentialUid: string }) => s.credentialUid)).not.toContain('SOUTH-ONLY-2');
+      expect(south.body.students.map((s: { credentialUid: string }) => s.credentialUid)).toContain('SOUTH-ONLY-2');
+      expect(south.body.students).toHaveLength(await prisma.student.count({ where: { schoolId: SOUTH } }));
+      expect(south.body.utcOffsetMinutes).toBe(-420); // Tijuana in October (daylight time)
+    } finally {
       await prisma.student.delete({ where: { id: southOnly.id } });
     }
   });
