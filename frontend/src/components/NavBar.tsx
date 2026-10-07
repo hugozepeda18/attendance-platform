@@ -1,4 +1,4 @@
-import { GraduationCap, Users, Shield, User, LogOut } from 'lucide-react';
+import { GraduationCap, Users, Shield, User, LogOut, UserCog } from 'lucide-react';
 import type { UserRole, ViewTab } from '../types';
 
 interface Props {
@@ -6,10 +6,11 @@ interface Props {
   onTabChange: (tab: ViewTab) => void;
   role: UserRole;
   schoolName: string;
+  userName: string | null;
   onSignOut: () => void;
 }
 
-export default function NavBar({ activeTab, onTabChange, role, schoolName, onSignOut }: Props) {
+export default function NavBar({ activeTab, onTabChange, role, schoolName, userName, onSignOut }: Props) {
   return (
     <header className="bg-white border-b border-slate-200 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
@@ -45,6 +46,19 @@ export default function NavBar({ activeTab, onTabChange, role, schoolName, onSig
             <Users size={15} />
             By Group
           </button>
+          {role === 'PRINCIPAL' && (
+            <button
+              onClick={() => onTabChange('staff')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all
+                ${activeTab === 'staff'
+                  ? 'bg-white shadow text-blue-700'
+                  : 'text-slate-500 hover:text-slate-700'
+                }`}
+            >
+              <UserCog size={15} />
+              Staff
+            </button>
+          )}
         </div>
 
         {/* Signed-in role (from the server) + sign out */}
@@ -57,7 +71,7 @@ export default function NavBar({ activeTab, onTabChange, role, schoolName, onSig
               }`}
           >
             {role === 'PRINCIPAL' ? <Shield size={15} /> : <User size={15} />}
-            {role}
+            <span className="hidden md:inline">{userName ?? role}</span>
           </span>
           <button
             onClick={onSignOut}

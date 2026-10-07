@@ -7,6 +7,8 @@ const SEEDED = ['default-school', 'school-b'];
 
 async function cleanupCreatedSchools() {
   const where = { schoolId: { notIn: SEEDED } };
+  await prisma.session.deleteMany({ where: { user: where } });
+  await prisma.user.deleteMany({ where });
   await prisma.apiKey.deleteMany({ where });
   await prisma.schoolConfig.deleteMany({ where });
   await prisma.school.deleteMany({ where: { id: { notIn: SEEDED } } });
@@ -36,7 +38,7 @@ describe('School onboarding lifecycle', () => {
     const res = await request(app)
       .post('/api/v1/admin/schools')
       .set(admin)
-      .send({ name: 'Secundaria Nueva', timezone: 'America/Monterrey', schoolStartTime: '07:30' });
+      .send({ name: 'Secundaria Nueva', slug: 'test-nueva', timezone: 'America/Monterrey', schoolStartTime: '07:30' });
 
     expect(res.status).toBe(201);
     expect(res.body.school.config).toMatchObject({ timezone: 'America/Monterrey', schoolStartTime: '07:30' });
@@ -56,10 +58,29 @@ describe('School onboarding lifecycle', () => {
   });
 
   it('validates input (bad timezone, bad time)', async () => {
-    const tz = await request(app).post('/api/v1/admin/schools').set(admin).send({ name: 'X', timezone: 'Mars/Base' });
+    const tz = await request(app).post('/api/v1/admin/schools').set(admin).send({ name: 'X', slug: 'test-x', timezone: 'Mars/Base' });
     expect(tz.status).toBe(400);
-    const time = await request(app).post('/api/v1/admin/schools').set(admin).send({ name: 'X', schoolStartTime: '25:00' });
+    const time = await request(app).post('/api/v1/admin/schools').set(admin).send({ name: 'X', slug: 'test-x', schoolStartTime: '25:00' });
     expect(time.status).toBe(400);
+  });
+
+  it('rejects invalid, reserved and duplicate slugs', async () => {
+    for (const slug of ['Bad Slug', 'www', '-x', '']) {
+      const res = await request(app).post('/api/v1/admin/schools').set(admin).send({ name: 'X', slug });
+      expect(res.status).toBe(400);
+    }
+    const dup = await request(app).post('/api/v1/admin/schools').set(admin).send({ name: 'X', slug: 'norte' });
+    expect(dup.status).toBe(409);
+    expect(dup.body.error).toBe('SLUG_TAKEN');
+  });
+
+  it('renames a school slug (409 on conflict)', async () => {
+    const created = await request(app).post('/api/v1/admin/schools').set(admin).send({ name: 'Rename', slug: 'test-rename' });
+    const id = created.body.school.id;
+    const ok = await request(app).patch(`/api/v1/admin/schools/${id}`).set(admin).send({ slug: 'test-renamed' });
+    expect(ok.status).toBe(200);
+    expect(ok.body.slug).toBe('test-renamed');
+    await request(app).patch(`/api/v1/admin/schools/${id}`).set(admin).send({ slug: 'sur' }).expect(409);
   });
 
   it('lists schools with student counts', async () => {
@@ -69,7 +90,7 @@ describe('School onboarding lifecycle', () => {
   });
 
   it('deactivates and reactivates a school', async () => {
-    const created = await request(app).post('/api/v1/admin/schools').set(admin).send({ name: 'Temp' });
+    const created = await request(app).post('/api/v1/admin/schools').set(admin).send({ name: 'Temp', slug: 'test-temp' });
     const id = created.body.school.id;
     const staffKey = created.body.apiKeys.find((k: { role: string }) => k.role === 'STAFF').key;
 
@@ -81,7 +102,7 @@ describe('School onboarding lifecycle', () => {
   });
 
   it('issues, lists and revokes keys', async () => {
-    const created = await request(app).post('/api/v1/admin/schools').set(admin).send({ name: 'Keys' });
+    const created = await request(app).post('/api/v1/admin/schools').set(admin).send({ name: 'Keys', slug: 'test-keys' });
     const id = created.body.school.id;
 
     const issued = await request(app)

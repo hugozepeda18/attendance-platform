@@ -6,7 +6,8 @@ import GroupView from './pages/GroupView';
 import GradeView from './pages/GradeView';
 import Student30DayModal from './components/Student30DayModal';
 import SignIn from './pages/SignIn';
-import { getMe } from './services/auth';
+import StaffView from './pages/StaffView';
+import { getMe, logout } from './services/auth';
 import { getToken, clearToken } from './services/session';
 
 export default function App() {
@@ -28,8 +29,10 @@ export default function App() {
   }, []);
 
   function handleSignOut() {
-    clearToken();
-    setMe(null);
+    logout().catch(() => {}).finally(() => {
+      clearToken();
+      setMe(null);
+    });
   }
 
   function handleGroupSelect(grade: number, group: string) {
@@ -50,61 +53,68 @@ export default function App() {
         onTabChange={setActiveTab}
         role={role}
         schoolName={me.school.name}
+        userName={me.user?.name ?? null}
         onSignOut={handleSignOut}
       />
 
       <main className="max-w-7xl mx-auto px-4 py-6 space-y-5">
-        {/* Search bar */}
-        <SearchBar onStudentSelect={setSelectedStudentId} />
-
-        {/* Grade + Group selectors */}
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex gap-1.5">
-            {[1, 2, 3].map((g) => (
-              <button
-                key={g}
-                onClick={() => setSelectedGrade(g)}
-                className={`px-4 py-2 rounded-lg border text-sm font-medium transition-all
-                  ${selectedGrade === g
-                    ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                    : 'bg-white text-slate-600 border-slate-200 hover:border-blue-400'
-                  }`}
-              >
-                Grade {g}
-              </button>
-            ))}
-          </div>
-
-          {activeTab === 'group' && (
-            <div className="flex gap-1.5">
-              {['A', 'B'].map((g) => (
-                <button
-                  key={g}
-                  onClick={() => setSelectedGroup(g)}
-                  className={`px-4 py-2 rounded-lg border text-sm font-medium transition-all
-                    ${selectedGroup === g
-                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                      : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-400'
-                    }`}
-                >
-                  Group {g}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Main content */}
-        {activeTab === 'grade' ? (
-          <GradeView grade={selectedGrade} onGroupSelect={handleGroupSelect} />
+        {activeTab === 'staff' ? (
+          <StaffView currentUserId={me.user?.id ?? null} />
         ) : (
-          <GroupView
-            grade={selectedGrade}
-            group={selectedGroup}
-            role={role}
-            onStudentSelect={setSelectedStudentId}
-            refreshKey={refreshKey}
-          />
+          <>
+            {/* Search bar */}
+            <SearchBar onStudentSelect={setSelectedStudentId} />
+
+            {/* Grade + Group selectors */}
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex gap-1.5">
+                {[1, 2, 3].map((g) => (
+                  <button
+                    key={g}
+                    onClick={() => setSelectedGrade(g)}
+                    className={`px-4 py-2 rounded-lg border text-sm font-medium transition-all
+                      ${selectedGrade === g
+                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                        : 'bg-white text-slate-600 border-slate-200 hover:border-blue-400'
+                      }`}
+                  >
+                    Grade {g}
+                  </button>
+                ))}
+              </div>
+
+              {activeTab === 'group' && (
+                <div className="flex gap-1.5">
+                  {['A', 'B'].map((g) => (
+                    <button
+                      key={g}
+                      onClick={() => setSelectedGroup(g)}
+                      className={`px-4 py-2 rounded-lg border text-sm font-medium transition-all
+                        ${selectedGroup === g
+                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                          : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-400'
+                        }`}
+                    >
+                      Group {g}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Main content */}
+            {activeTab === 'grade' ? (
+              <GradeView grade={selectedGrade} onGroupSelect={handleGroupSelect} />
+            ) : (
+              <GroupView
+                grade={selectedGrade}
+                group={selectedGroup}
+                role={role}
+                onStudentSelect={setSelectedStudentId}
+                refreshKey={refreshKey}
+              />
+            )}
+          </>
         )}
       </main>
 

@@ -40,7 +40,9 @@
 
 ## 3. Data Model & Schema (PostgreSQL via Prisma)
 * **Multi-tenancy (SaaS):** Shared database, row-level tenancy. Each school is a `School` tenant; the platform owner is the `SUPERADMIN`.
-* **School:** `id`, `name`, `active` (deactivated schools are locked out), `createdAt`.
+* **School:** `id`, `slug` (unique; the school's subdomain, e.g. `sec-12` → `sec-12.<platform domain>`), `name`, `active` (deactivated schools are locked out), `createdAt`.
+* **User:** `id`, `schoolId`, `email` (unique per school, stored lowercase), `name`, `role` (`STAFF | PRINCIPAL`), `passwordHash` (Node `crypto.scrypt`, salted), `active`, `createdAt`. People sign in; devices use `ApiKey`.
+* **Session:** `id`, `userId`, `tokenHash` (sha256 of an opaque `st_` token), `createdAt`, `expiresAt` (12 h), `revokedAt`.
 * **ApiKey:** `id`, `schoolId`, `role` (`SCANNER | STAFF | PRINCIPAL`), `label`, `keyHash` (sha256; plaintext shown once), `createdAt`, `revokedAt`.
 * `SchoolConfig` (one per school, `schoolId` unique), `Student`, `Teacher`, `Subject` carry `schoolId`. `credentialUid` and teacher `email` are unique **per school**. `AttendanceRecord` is scoped through its student.
 * **SchoolConfig:**
@@ -65,6 +67,7 @@
   * `scanTimestamp`: DateTime (Nullable, set when badge is scanned)
   * `status`: Enum (`PRESENT`, `TARDY`, `ABSENT`, `EXCUSED`)
   * `updatedByRole`: Enum (`SYSTEM`, `SCANNER`, `PRINCIPAL`, `SUPERADMIN`)
+  * `updatedByUserId`: UUID (Nullable FK -> User.id; the person who made a manual override)
 * **Subject & Teacher (Extensible Schema Stubs for Future):**
   * `Teacher`: `id`, `name`, `email`
   * `Subject`: `id`, `name`, `grade`, `group`, `teacherId` (Nullable relation)
@@ -81,7 +84,10 @@
   * Inserts an `ABSENT` record for each missing student.
   * Emits automated "Unexcused Absence Alert" WhatsApp messages to respective guardians.
 * **Authentication & Roles:**
-  * All tenant routes require `Authorization: Bearer <token>`. The token resolves server-side to `{ role, schoolId }`; client role headers are ignored.
+  * All tenant routes require `Authorization: Bearer <token>`. The token is either a user session (`st_…`, from login) or a device API key (`ak_…`), and resolves server-side to `{ role, schoolId, userId? }`; client role headers are ignored.
+  * Each school uses only its own URL (`<slug>.<platform domain>`). The frontend reads the slug from the hostname and sends it with the login request; the user never types it.
+  * Login is throttled: 5 failed attempts per school+email lock that pair for 15 minutes (in-memory, per backend process).
+  * Deactivating a user, changing their role or resetting their password revokes their sessions immediately. A principal cannot deactivate or demote their own account.
   * `SCANNER`: scan only. `STAFF`: scan + search/analytics. `PRINCIPAL`: all of STAFF + manual overrides.
   * `SUPERADMIN` (env `SUPERADMIN_API_KEY`): platform owner. Manages schools via `/api/v1/admin/*`; acts on a tenant's routes by sending `x-school-id`. Its overrides are recorded as `updatedByRole: SUPERADMIN`.
 * **Role-Based Overrides:**
@@ -100,13 +106,17 @@
 * `GET /api/v1/attendance/analytics/student/:id`
   * Returns: Student profile, guardian details, 30-day timeline array of `{ date, status, scanTimestamp }`, and risk flag (`isHabituallyTardy`, `isChronicAbsentee`).
 * `PATCH /api/v1/attendance/record/:id`
-  * Headers: `Authorization: Bearer <PRINCIPAL token>`
+  * Headers: `Authorization: Bearer <PRINCIPAL session or key>` (response includes `updatedByUserId`)
   * Body: `{ "status": "EXCUSED", "note": "Medical certificate provided" }`
   * Returns 401 without a valid token, 403 for non-PRINCIPAL roles, 404 for records of another school.
-* `GET /api/v1/me` → `{ role, school: { id, name } | null }`
+* `GET /api/v1/public/schools/:slug` (no auth) → `{ name }`; 404 if unknown or inactive.
+* `POST /api/v1/auth/login` `{ school: "<slug>", email, password }` → `{ token, expiresAt, user, school }`; 401 `INVALID_CREDENTIALS`, 403 `SCHOOL_INACTIVE`, 429 `TOO_MANY_ATTEMPTS`.
+* `POST /api/v1/auth/logout` → 204 (revokes the current session).
+* `GET /api/v1/me` → `{ role, school: { id, name, slug } | null, user: { id, name, email } | null }`
+* PRINCIPAL (or SUPERADMIN with `x-school-id`): `GET /api/v1/users`, `POST /api/v1/users` `{ email, name, role: STAFF|PRINCIPAL, password (10+) }`, `PATCH /api/v1/users/:id` `{ name?, role?, active?, password? }`. 409 `EMAIL_TAKEN`, 400 `SELF_LOCKOUT`.
 * Super-admin only (`Authorization: Bearer $SUPERADMIN_API_KEY`):
-  * `POST /api/v1/admin/schools` `{ name, schoolStartTime?, tardyGraceMinutes?, absenceCutoffMinutes?, timezone? }` → 201 `{ school, apiKeys: [{ role, key }] }` (keys shown once)
+  * `POST /api/v1/admin/schools` `{ name, slug, schoolStartTime?, tardyGraceMinutes?, absenceCutoffMinutes?, timezone? }` → 201 `{ school, apiKeys: [{ role, key }] }` (keys shown once)
   * `GET /api/v1/admin/schools` → `{ schools: [{ id, name, active, timezone, studentCount }] }`
-  * `PATCH /api/v1/admin/schools/:id` `{ active }`
+  * `PATCH /api/v1/admin/schools/:id` `{ active?, slug? }` (409 `SLUG_TAKEN`)
   * `GET|POST /api/v1/admin/schools/:id/keys` (`POST` body `{ role, label }` → plaintext key once), `DELETE /api/v1/admin/schools/:id/keys/:keyId` (revoke)
 * Error codes: `401 UNAUTHENTICATED`, `403 FORBIDDEN | SCHOOL_INACTIVE`, `400 SCHOOL_REQUIRED` (super-admin without `x-school-id`).

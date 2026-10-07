@@ -3,9 +3,20 @@ export type UserRole = 'SCANNER' | 'STAFF' | 'PRINCIPAL' | 'SUPERADMIN';
 
 export interface Me {
   role: UserRole;
-  school: { id: string; name: string } | null;
+  school: { id: string; name: string; slug: string } | null;
+  user: { id: string; name: string; email: string } | null;
 }
-export type ViewTab = 'grade' | 'group';
+
+export interface SchoolUser {
+  id: string;
+  email: string;
+  name: string;
+  role: PersonRole;
+  active: boolean;
+  createdAt: string;
+}
+export type ViewTab = 'grade' | 'group' | 'staff';
+export type PersonRole = 'STAFF' | 'PRINCIPAL';
 
 export interface AttendanceOverview {
   present: number;

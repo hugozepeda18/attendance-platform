@@ -56,6 +56,7 @@ export async function patchRecord(req: Request, res: Response): Promise<void> {
       status: updated.status,
       note: updated.note,
       updatedByRole: updated.updatedByRole,
+      updatedByUserId: updated.updatedByUserId,
     });
   } catch (err) {
     console.error('[patchRecord]', err);

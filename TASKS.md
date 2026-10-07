@@ -72,7 +72,7 @@ Rules for the Agent:
 - [x] **Phase 10: Frontend Sign-In**
   - [x] Sign-in screen, bearer header interceptor, `GET /api/v1/me`, remove demo role toggle.
 
-- [ ] **Phase 11: User Accounts (Option B)**
-  - [ ] `User` + `Session` models; email/password login (Node `crypto.scrypt`), opaque session tokens.
-  - [ ] Overrides record the acting user; principals manage their school's staff accounts.
-  - [ ] Frontend email/password sign-in; API keys remain for scanner devices.
+- [x] **Phase 11: User Accounts (Option B)**
+  - [x] `School.slug` (subdomain per school); `User` + `Session` models; email/password login (Node `crypto.scrypt`), opaque session tokens, login throttle.
+  - [x] Overrides record the acting user (`updatedByUserId`); principals manage their school's staff accounts (`/api/v1/users`).
+  - [x] Frontend: school detected from subdomain, email/password sign-in, logout, Staff page for principals; API keys remain for scanner devices.

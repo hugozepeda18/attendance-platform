@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { PrismaClient, Role } from '@prisma/client';
-import { hashToken } from '../src/lib/tokens';
+import { hashPassword, hashToken } from '../src/lib/tokens';
 
 const prisma = new PrismaClient();
 
@@ -17,20 +17,37 @@ function padNum(n: number): string {
   return String(n).padStart(2, '0');
 }
 
-// Dev-only fixed API keys so RUNBOOK curls and integration tests can authenticate.
+// Dev-only fixed API keys and users so RUNBOOK curls and integration tests can authenticate.
+// Users: principal@<slug>.test / staff@<slug>.test, password DEV_PASSWORD.
 // Two schools deliberately share badge IDs (CARD-1A-01...) to exercise tenant isolation.
 const DEV_SCHOOLS = [
-  { id: 'default-school', name: 'Secundaria Demo Norte', timezone: 'America/Mexico_City', keyPrefix: 'north' },
-  { id: 'school-b', name: 'Secundaria Demo Sur', timezone: 'America/Tijuana', keyPrefix: 'south' },
+  { id: 'default-school', slug: 'norte', name: 'Secundaria Demo Norte', timezone: 'America/Mexico_City', keyPrefix: 'north' },
+  { id: 'school-b', slug: 'sur', name: 'Secundaria Demo Sur', timezone: 'America/Tijuana', keyPrefix: 'south' },
 ];
+const DEV_PASSWORD = 'dev-password-123';
 const ROLES: Role[] = ['SCANNER', 'STAFF', 'PRINCIPAL'];
 
 async function seedSchool(school: (typeof DEV_SCHOOLS)[number]) {
   await prisma.school.upsert({
     where: { id: school.id },
-    update: {},
-    create: { id: school.id, name: school.name },
+    update: { slug: school.slug, name: school.name },
+    create: { id: school.id, slug: school.slug, name: school.name },
   });
+
+  for (const role of ['PRINCIPAL', 'STAFF'] as const) {
+    const email = `${role.toLowerCase()}@${school.slug}.test`;
+    await prisma.user.upsert({
+      where: { schoolId_email: { schoolId: school.id, email } },
+      update: {},
+      create: {
+        schoolId: school.id,
+        email,
+        name: `${role === 'PRINCIPAL' ? 'Director' : 'Prefecto'} ${school.slug}`,
+        role,
+        passwordHash: await hashPassword(DEV_PASSWORD),
+      },
+    });
+  }
 
   await prisma.schoolConfig.upsert({
     where: { schoolId: school.id },

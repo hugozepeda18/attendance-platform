@@ -135,5 +135,6 @@ export async function overrideRecord(
     status,
     note: note ?? null,
     updatedByRole: auth.role === 'SUPERADMIN' ? UpdatedByRole.SUPERADMIN : UpdatedByRole.PRINCIPAL,
+    updatedByUserId: auth.userId ?? null,
   });
 }

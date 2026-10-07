@@ -23,7 +23,7 @@ export async function createAttendanceRecord(data: {
 
 export async function updateAttendanceRecord(
   id: string,
-  data: { status: AttendanceStatus; note?: string | null; updatedByRole: UpdatedByRole },
+  data: { status: AttendanceStatus; note?: string | null; updatedByRole: UpdatedByRole; updatedByUserId?: string | null },
 ) {
   return prisma.attendanceRecord.update({ where: { id }, data });
 }

@@ -9,6 +9,7 @@ datasource db {
 
 model School {
   id        String        @id @default(uuid())
+  slug      String        @unique // subdomain: <slug>.<platform domain>
   name      String
   active    Boolean       @default(true)
   createdAt DateTime      @default(now())
@@ -17,6 +18,35 @@ model School {
   teachers  Teacher[]
   subjects  Subject[]
   apiKeys   ApiKey[]
+  users     User[]
+}
+
+// People who sign in to a school's web page. Devices (scanners) use ApiKey instead.
+model User {
+  id           String             @id @default(uuid())
+  schoolId     String
+  school       School             @relation(fields: [schoolId], references: [id])
+  email        String
+  name         String
+  role         Role
+  passwordHash String
+  active       Boolean            @default(true)
+  createdAt    DateTime           @default(now())
+  sessions     Session[]
+  updates      AttendanceRecord[]
+
+  @@unique([schoolId, email])
+}
+
+// Opaque login sessions. Only the sha256 of the token is stored.
+model Session {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  tokenHash String    @unique
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  revokedAt DateTime?
 }
 
 // Long-lived device/service credentials (scanners, integrations). Only the sha256 hash is stored.
@@ -64,14 +94,16 @@ model Student {
 }
 
 model AttendanceRecord {
-  id            String           @id @default(uuid())
-  studentId     String
-  student       Student          @relation(fields: [studentId], references: [id])
-  date          DateTime         @db.Date
-  scanTimestamp DateTime?
-  status        AttendanceStatus
-  updatedByRole UpdatedByRole
-  note          String?
+  id              String           @id @default(uuid())
+  studentId       String
+  student         Student          @relation(fields: [studentId], references: [id])
+  date            DateTime         @db.Date
+  scanTimestamp   DateTime?
+  status          AttendanceStatus
+  updatedByRole   UpdatedByRole
+  updatedByUserId String?
+  updatedByUser   User?            @relation(fields: [updatedByUserId], references: [id])
+  note            String?
 
   @@unique([studentId, date])
 }

@@ -22,21 +22,19 @@ export async function listActiveSchoolConfigs() {
 
 export async function createSchoolWithConfig(data: {
   name: string;
+  slug: string;
   config: { schoolStartTime: string; tardyGraceMinutes: number; absenceCutoffMinutes: number; timezone: string };
   keys: { role: Role; label: string; keyHash: string }[];
 }) {
   return prisma.school.create({
     data: {
       name: data.name,
+      slug: data.slug,
       config: { create: data.config },
       apiKeys: { create: data.keys },
     },
     include: { config: true },
   });
-}
-
-export async function setSchoolActive(id: string, active: boolean) {
-  return prisma.school.update({ where: { id }, data: { active } });
 }
 
 export async function createApiKey(data: { schoolId: string; role: Role; label: string; keyHash: string }) {
@@ -56,4 +54,12 @@ export async function revokeApiKey(schoolId: string, id: string) {
     where: { id, schoolId, revokedAt: null },
     data: { revokedAt: new Date() },
   });
+}
+
+export async function findSchoolBySlug(slug: string) {
+  return prisma.school.findUnique({ where: { slug } });
+}
+
+export async function updateSchool(id: string, data: { active?: boolean; slug?: string }) {
+  return prisma.school.update({ where: { id }, data });
 }

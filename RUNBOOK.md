@@ -58,8 +58,14 @@ npm run build
 ```
 
 ## 5. Simulating a Scanner Event (Curl Test)
-The dev seed creates two schools that share badge IDs, with fixed dev keys:
-`ak_dev_north_{scanner,staff,principal}` (school `default-school`), `ak_dev_south_{scanner,staff,principal}` (school `school-b`), and the super-admin key from `SUPERADMIN_API_KEY` (`ak_dev_superadmin`). Sign in to the frontend with a STAFF or PRINCIPAL key.
+The dev seed creates two schools that share badge IDs:
+
+| School | Web page (dev) | Users (password `dev-password-123`) | Device keys |
+|---|---|---|---|
+| Secundaria Demo Norte (`norte`) | http://norte.localhost:5173 | `principal@norte.test`, `staff@norte.test` | `ak_dev_north_{scanner,staff,principal}` |
+| Secundaria Demo Sur (`sur`) | http://sur.localhost:5173 | `principal@sur.test`, `staff@sur.test` | `ak_dev_south_{scanner,staff,principal}` |
+
+The super-admin key is `SUPERADMIN_API_KEY` (`ak_dev_superadmin`). Plain `http://localhost:5173` has no school and shows "School not found".
 
 ```bash
 # Simulate student scanning at the gate (On-time)
@@ -89,10 +95,16 @@ curl -i -X POST http://localhost:4000/api/v1/attendance/scan \
 ```bash
 ADMIN="Authorization: Bearer $SUPERADMIN_API_KEY"
 
-# Onboard a new school (the response contains its keys ONCE; store them safely)
+# Onboard a new school (the response contains its device keys ONCE; store them safely)
 curl -X POST http://localhost:4000/api/v1/admin/schools -H "$ADMIN" \
   -H "Content-Type: application/json" \
-  -d '{"name": "Secundaria 12", "timezone": "America/Monterrey", "schoolStartTime": "07:30"}'
+  -d '{"name": "Secundaria 12", "slug": "sec-12", "timezone": "America/Monterrey", "schoolStartTime": "07:30"}'
+
+# Create the school's first principal (they then add their own staff from the Staff page)
+curl -X POST http://localhost:4000/api/v1/users -H "$ADMIN" -H "x-school-id: <id>" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "director@sec12.mx", "name": "Directora", "role": "PRINCIPAL", "password": "<initial password>"}'
+# → the principal signs in at https://sec-12.<your domain>
 
 # List schools / deactivate one
 curl http://localhost:4000/api/v1/admin/schools -H "$ADMIN"
@@ -112,4 +124,4 @@ cd backend && npx prisma studio
 ```
 Restart the backend after onboarding a school so its absence job gets scheduled.
 
-**Production:** set `SUPERADMIN_API_KEY` to a long random value (`openssl rand -base64 32`), never run the seed (it refuses when `NODE_ENV=production`), and change the default Postgres credentials in `docker-compose.yml`.
+**Production:** point a wildcard DNS record (`*.<your domain>`) and a wildcard TLS certificate at the frontend; set `SUPERADMIN_API_KEY` to a long random value (`openssl rand -base64 32`), never run the seed (it refuses when `NODE_ENV=production`), and change the default Postgres credentials in `docker-compose.yml`.

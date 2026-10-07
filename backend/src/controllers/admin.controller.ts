@@ -3,11 +3,13 @@ import { z } from 'zod';
 import {
   onboardSchool,
   getSchools,
-  updateSchoolStatus,
+  editSchool,
+  SlugTakenError,
   issueApiKey,
   getApiKeys,
   revokeKey,
 } from '../services/school.service';
+import { slugSchema } from '../lib/validation';
 
 const isTimezone = (tz: string) => {
   try {
@@ -20,13 +22,16 @@ const isTimezone = (tz: string) => {
 
 const CreateSchoolSchema = z.object({
   name: z.string().trim().min(1, 'name is required'),
+  slug: slugSchema,
   schoolStartTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'schoolStartTime must be HH:mm').default('08:00'),
   tardyGraceMinutes: z.number().int().min(0).max(240).default(10),
   absenceCutoffMinutes: z.number().int().min(0).max(600).default(30),
   timezone: z.string().refine(isTimezone, 'timezone must be a valid IANA timezone').default('America/Mexico_City'),
 });
 
-const StatusSchema = z.object({ active: z.boolean() });
+const UpdateSchoolSchema = z
+  .object({ active: z.boolean().optional(), slug: slugSchema.optional() })
+  .refine((v) => v.active !== undefined || v.slug !== undefined, 'nothing to update');
 
 const IssueKeySchema = z.object({
   role: z.enum(['SCANNER', 'STAFF', 'PRINCIPAL']),
@@ -46,6 +51,10 @@ function wrap(name: string, fn: (req: Request, res: Response) => Promise<void>) 
     try {
       await fn(req, res);
     } catch (err) {
+      if (err instanceof SlugTakenError) {
+        res.status(409).json({ error: 'SLUG_TAKEN', message: 'Another school already uses this slug' });
+        return;
+      }
       console.error(`[${name}]`, err);
       res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Internal server error' });
     }
@@ -63,9 +72,9 @@ export const listSchools = wrap('listSchools', async (_req, res) => {
 });
 
 export const patchSchool = wrap('patchSchool', async (req, res) => {
-  const parsed = StatusSchema.safeParse(req.body);
+  const parsed = UpdateSchoolSchema.safeParse(req.body);
   if (!parsed.success) return badInput(res, parsed.error);
-  const school = await updateSchoolStatus(String(req.params.id), parsed.data.active);
+  const school = await editSchool(String(req.params.id), parsed.data);
   if (!school) return notFound(res);
   res.json(school);
 });

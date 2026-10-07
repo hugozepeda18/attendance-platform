@@ -1,4 +1,4 @@
-import { Role } from '@prisma/client';
+import { Prisma, Role } from '@prisma/client';
 import { generateToken, hashToken } from '../lib/tokens';
 import {
   createApiKey,
@@ -7,26 +7,35 @@ import {
   listApiKeys,
   listSchools,
   revokeApiKey,
-  setSchoolActive,
+  updateSchool,
 } from '../repositories/school.repository';
+
+export class SlugTakenError extends Error {}
+
+function rethrowSlugConflict(err: unknown): never {
+  if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') throw new SlugTakenError();
+  throw err;
+}
 
 const STARTER_ROLES: Role[] = ['SCANNER', 'STAFF', 'PRINCIPAL'];
 
 export async function onboardSchool(input: {
   name: string;
+  slug: string;
   schoolStartTime: string;
   tardyGraceMinutes: number;
   absenceCutoffMinutes: number;
   timezone: string;
 }) {
   const keys = STARTER_ROLES.map((role) => ({ role, label: `initial ${role.toLowerCase()}`, plain: generateToken('ak') }));
-  const { name, ...config } = input;
+  const { name, slug, ...config } = input;
 
   const school = await createSchoolWithConfig({
     name,
+    slug,
     config,
     keys: keys.map(({ role, label, plain }) => ({ role, label, keyHash: hashToken(plain) })),
-  });
+  }).catch(rethrowSlugConflict);
 
   // Plaintext keys are returned exactly once; only hashes are stored.
   return { school, apiKeys: keys.map(({ role, plain }) => ({ role, key: plain })) };
@@ -37,6 +46,7 @@ export async function getSchools() {
   return schools.map((s) => ({
     id: s.id,
     name: s.name,
+    slug: s.slug,
     active: s.active,
     createdAt: s.createdAt,
     timezone: s.config?.timezone ?? null,
@@ -44,9 +54,9 @@ export async function getSchools() {
   }));
 }
 
-export async function updateSchoolStatus(id: string, active: boolean) {
+export async function editSchool(id: string, data: { active?: boolean; slug?: string }) {
   if (!(await findSchoolById(id))) return null;
-  return setSchoolActive(id, active);
+  return updateSchool(id, data).catch(rethrowSlugConflict);
 }
 
 export async function issueApiKey(schoolId: string, role: Role, label: string) {
