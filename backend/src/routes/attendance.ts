@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { scan } from '../controllers/attendance.controller';
+import { scan, scanBatch } from '../controllers/attendance.controller';
 import { search } from '../controllers/search.controller';
 import { groupAnalytics, studentAnalytics, patchRecord } from '../controllers/analytics.controller';
 import { authenticate, requireTenant, requireRole } from '../middleware/auth';
@@ -12,7 +12,9 @@ const router = Router();
 router.use('/attendance', authenticate, requireTenant);
 const staff = requireRole('STAFF', 'PRINCIPAL');
 
-router.post('/attendance/scan', requireRole('SCANNER', 'STAFF', 'PRINCIPAL'), scan);
+const scanner = requireRole('SCANNER', 'STAFF', 'PRINCIPAL');
+router.post('/attendance/scan', scanner, scan);
+router.post('/attendance/scans', scanner, scanBatch);
 router.get('/attendance/search', staff, search);
 router.get('/attendance/analytics/group/:grade/:group', staff, groupAnalytics);
 router.get('/attendance/analytics/student/:id', staff, studentAnalytics);

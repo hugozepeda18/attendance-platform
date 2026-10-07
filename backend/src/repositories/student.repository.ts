@@ -1,7 +1,8 @@
 import prisma from '../lib/prisma';
 
+// Case-insensitive: RFID readers may print hex UIDs in either case.
 export async function findStudentByCredentialUid(schoolId: string, credentialUid: string) {
-  return prisma.student.findUnique({ where: { schoolId_credentialUid: { schoolId, credentialUid } } });
+  return prisma.student.findFirst({ where: { schoolId, credentialUid: { equals: credentialUid, mode: 'insensitive' } } });
 }
 
 export async function findStudentById(schoolId: string, id: string) {

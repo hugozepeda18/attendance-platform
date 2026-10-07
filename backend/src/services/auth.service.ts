@@ -1,6 +1,6 @@
 import { Role } from '@prisma/client';
 import { generateToken, hashPassword, hashToken, safeEqual, verifyPassword } from '../lib/tokens';
-import { findApiKeyByHash, findSchoolById } from '../repositories/school.repository';
+import { findApiKeyByHash, findSchoolById, touchApiKey } from '../repositories/school.repository';
 import {
   createSession,
   findAdminByEmail,
@@ -14,6 +14,7 @@ export interface AuthContext {
   schoolId: string | null; // null = super-admin without a selected school
   userId?: string; // set for signed-in school users, absent for API keys
   adminId?: string; // set for signed-in platform admins
+  apiKeyId?: string; // set for API keys (scanners, integrations)
   sessionId?: string;
 }
 
@@ -59,7 +60,9 @@ export async function resolveBearerToken(
   const key = await findApiKeyByHash(hashToken(token));
   if (!key || key.revokedAt) return invalid;
   if (!key.school.active) return inactive;
-  return { ok: true, auth: { role: key.role, schoolId: key.schoolId } };
+  // Scanner health; written at most once a minute per key.
+  if (!key.lastSeenAt || Date.now() - key.lastSeenAt.getTime() > 60_000) await touchApiKey(key.id);
+  return { ok: true, auth: { role: key.role, schoolId: key.schoolId, apiKeyId: key.id } };
 }
 
 // ─── Login throttle ──────────────────────────────────────────────────────────

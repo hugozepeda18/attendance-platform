@@ -49,6 +49,7 @@ const UpdateSchoolSchema = z
     tardyGraceMinutes: configFields.tardyGraceMinutes.optional(),
     absenceCutoffMinutes: configFields.absenceCutoffMinutes.optional(),
     timezone: configFields.timezone.optional(),
+    dropLeadingZeros: z.boolean().optional(), // badge "0042" matches roster "42"
   })
   .refine((v) => Object.values(v).some((x) => x !== undefined), 'nothing to update');
 

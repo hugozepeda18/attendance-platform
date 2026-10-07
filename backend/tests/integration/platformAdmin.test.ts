@@ -122,12 +122,15 @@ describe('Absence job picks up changes without a restart', () => {
     expect(await runAbsenceTick(at('12:30'), noop)).toEqual([id]);
     expect(await runAbsenceTick(at('12:31'), noop)).toEqual([]);
 
-    // Moved to Tijuana (UTC-7): now due at 13:30Z instead
+    // Moved to Tijuana (UTC-7): now due at 13:30Z instead (the run above already counts for today)
+    const notRunToday = () => prisma.schoolConfig.update({ where: { schoolId: id }, data: { absenceRunOn: null } });
+    await notRunToday();
     await request(app).patch(`/api/v1/admin/schools/${id}`).set(auth(owner)).send({ timezone: 'America/Tijuana' }).expect(200);
     expect(await runAbsenceTick(at('12:30'), noop)).toEqual([]);
     expect(await runAbsenceTick(at('13:30'), noop)).toEqual([id]);
 
     // Deactivated: skipped
+    await notRunToday();
     await request(app).patch(`/api/v1/admin/schools/${id}`).set(auth(owner)).send({ active: false }).expect(200);
     expect(await runAbsenceTick(at('13:30'), noop)).toEqual([]);
   });
@@ -135,6 +138,8 @@ describe('Absence job picks up changes without a restart', () => {
   it('runs the real evaluation for the due school only', async () => {
     await cleanupCreatedSchools(prisma); // schools created above with default 08:00 schedules would also be due
     await prisma.attendanceRecord.deleteMany({}); // other suites may leave today's scans behind
+    await prisma.schoolConfig.updateMany({ data: { absenceRunOn: null } });
+    await prisma.apiKey.updateMany({ data: { lastSeenAt: null, pendingScans: 0 } }); // no gates to wait for
     const due = await runAbsenceTick(at('14:30')); // 08:30 Mexico City → seeded "norte"
     expect(due).toEqual([NORTH]);
     expect(await prisma.attendanceRecord.count({ where: { status: 'ABSENT', student: { schoolId: NORTH } } })).toBe(30);

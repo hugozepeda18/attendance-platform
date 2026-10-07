@@ -8,17 +8,18 @@ datasource db {
 }
 
 model School {
-  id        String        @id @default(uuid())
-  slug      String        @unique // subdomain: <slug>.<platform domain>
-  name      String
-  active    Boolean       @default(true)
-  createdAt DateTime      @default(now())
-  config    SchoolConfig?
-  students  Student[]
-  teachers  Teacher[]
-  subjects  Subject[]
-  apiKeys   ApiKey[]
-  users     User[]
+  id         String        @id @default(uuid())
+  slug       String        @unique // subdomain: <slug>.<platform domain>
+  name       String
+  active     Boolean       @default(true)
+  createdAt  DateTime      @default(now())
+  config     SchoolConfig?
+  students   Student[]
+  teachers   Teacher[]
+  subjects   Subject[]
+  apiKeys    ApiKey[]
+  users      User[]
+  scanEvents ScanEvent[]
 }
 
 // People who sign in to a school's web page. Devices (scanners) use ApiKey instead.
@@ -65,14 +66,31 @@ model Session {
 
 // Long-lived device/service credentials (scanners, integrations). Only the sha256 hash is stored.
 model ApiKey {
-  id        String    @id @default(uuid())
-  schoolId  String
-  school    School    @relation(fields: [schoolId], references: [id])
-  role      Role
-  label     String
-  keyHash   String    @unique
-  createdAt DateTime  @default(now())
-  revokedAt DateTime?
+  id           String    @id @default(uuid())
+  schoolId     String
+  school       School    @relation(fields: [schoolId], references: [id])
+  role         Role
+  label        String
+  keyHash      String    @unique
+  createdAt    DateTime  @default(now())
+  revokedAt    DateTime?
+  lastSeenAt   DateTime? // last authenticated request (scanner health)
+  pendingScans Int       @default(0) // unsent scans reported by the gate's heartbeat
+}
+
+// Every gate upload, keyed by the device-generated eventId: replays return the stored result.
+model ScanEvent {
+  id            String   @id @default(uuid())
+  schoolId      String
+  school        School   @relation(fields: [schoolId], references: [id])
+  eventId       String
+  credentialUid String
+  scannedAt     DateTime // after clock correction; server time when clockSkew
+  clockSkew     Boolean  @default(false)
+  result        Json
+  createdAt     DateTime @default(now())
+
+  @@unique([schoolId, eventId])
 }
 
 enum Role {
@@ -82,13 +100,15 @@ enum Role {
 }
 
 model SchoolConfig {
-  id                   String @id @default(uuid())
-  schoolId             String @unique
-  school               School @relation(fields: [schoolId], references: [id])
+  id                   String    @id @default(uuid())
+  schoolId             String    @unique
+  school               School    @relation(fields: [schoolId], references: [id])
   schoolStartTime      String // HH:mm format, e.g. "08:00"
-  tardyGraceMinutes    Int    @default(10)
-  absenceCutoffMinutes Int    @default(30)
-  timezone             String @default("America/Mexico_City")
+  tardyGraceMinutes    Int       @default(10)
+  absenceCutoffMinutes Int       @default(30)
+  timezone             String    @default("America/Mexico_City")
+  dropLeadingZeros     Boolean   @default(false) // badge "0042" matches roster "42"
+  absenceRunOn         DateTime? @db.Date // last school day the absence run finished
 }
 
 model Student {

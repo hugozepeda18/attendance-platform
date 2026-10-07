@@ -12,9 +12,3 @@ export interface AbsenceAlertParams {
   studentName: string;
   date: Date;
 }
-
-export interface ScanResult {
-  studentName: string;
-  status: 'PRESENT' | 'TARDY';
-  timestamp: Date;
-}

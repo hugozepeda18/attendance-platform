@@ -116,7 +116,7 @@ describe('Attendance window (Phase 13)', () => {
 
     const sent: unknown[] = [];
     const spy = { sendScanAlert: async (p: unknown) => void sent.push(p), sendAbsenceAlert: async () => {} };
-    await expect(processScan(NORTH, 'CARD-1A-01', spy)).rejects.toThrow('closed');
+    expect((await processScan(NORTH, { credentialUid: 'CARD-1A-01' }, spy)).result).toBe('OUTSIDE_WINDOW');
     expect(sent).toHaveLength(0);
   });
 
@@ -157,8 +157,8 @@ describe('Attendance window (Phase 13)', () => {
       sendAbsenceAlert: async () => {},
     };
     const errorLog = jest.spyOn(console, 'error').mockImplementation(() => {});
-    const result = await processScan(NORTH, 'CARD-1A-01', broken);
-    expect(result.status).toBe('PRESENT');
+    const result = await processScan(NORTH, { credentialUid: 'CARD-1A-01' }, broken);
+    expect(result.result).toBe('PRESENT');
     expect(await prisma.attendanceRecord.count({ where: { studentId: await studentId() } })).toBe(1);
     expect(errorLog).toHaveBeenCalled();
     errorLog.mockRestore();

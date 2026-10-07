@@ -87,6 +87,17 @@ curl -X POST http://localhost:4000/api/v1/attendance/scan \
   -H "Content-Type: application/json" \
   -d '{"credentialUid": "CARD-1A-01"}'
 
+# Gate PC uploading its offline queue (safe to resend: same eventIds → same results, no second message)
+curl -X POST http://localhost:4000/api/v1/attendance/scans \
+  -H "Authorization: Bearer ak_dev_north_scanner" \
+  -H "Content-Type: application/json" \
+  -d "{\"sentAt\": \"$(date -u +%FT%TZ)\", \"events\": [{\"eventId\": \"evt-1\", \"credentialUid\": \"CARD-2B-03\", \"scannedAt\": \"$(date -u +%FT%TZ)\"}]}"
+
+# Gate heartbeat (pending > 0 at the cutoff delays that school's absence run, max 30 min)
+curl -X POST http://localhost:4000/api/v1/gate/heartbeat \
+  -H "Authorization: Bearer ak_dev_north_scanner" \
+  -H "Content-Type: application/json" -d '{"pending": 0}'
+
 # No token (Must return 401)
 curl -i -X POST http://localhost:4000/api/v1/attendance/scan \
   -H "Content-Type: application/json" -d '{"credentialUid": "CARD-1A-01"}'

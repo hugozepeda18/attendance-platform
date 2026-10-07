@@ -44,7 +44,8 @@
 * **User:** `id`, `schoolId`, `email` (unique per school, stored lowercase), `name`, `role` (`STAFF | PRINCIPAL`), `passwordHash` (Node `crypto.scrypt`, salted), `active`, `createdAt`. People sign in; devices use `ApiKey`.
 * **PlatformAdmin:** `id`, `email` (unique), `name`, `passwordHash`, `active`, `createdAt`. The platform owner's sign-in account (role `SUPERADMIN`), not tied to a school. Created with `npm run create-admin`.
 * **Session:** `id`, `userId` *or* `adminId` (DB CHECK: exactly one), `tokenHash` (sha256 of an opaque `st_` token), `createdAt`, `expiresAt` (12 h), `revokedAt`.
-* **ApiKey:** `id`, `schoolId`, `role` (`SCANNER | STAFF | PRINCIPAL`), `label`, `keyHash` (sha256; plaintext shown once), `createdAt`, `revokedAt`.
+* **ApiKey:** `id`, `schoolId`, `role` (`SCANNER | STAFF | PRINCIPAL`), `label`, `keyHash` (sha256; plaintext shown once), `createdAt`, `revokedAt`, `lastSeenAt` (scanner health, written at most once a minute), `pendingScans` (from the gate heartbeat).
+* **ScanEvent:** `id`, `schoolId`, `eventId` (device-generated, unique per school), `credentialUid` (as read), `scannedAt` (after clock correction), `clockSkew`, `result` (JSON outcome returned to the gate), `createdAt`. Makes gate retries idempotent.
 * `SchoolConfig` (one per school, `schoolId` unique), `Student`, `Teacher`, `Subject` carry `schoolId`. `credentialUid` and teacher `email` are unique **per school**. `AttendanceRecord` is scoped through its student.
 * **SchoolConfig:**
   * `id`: UUID (PK)
@@ -52,6 +53,8 @@
   * `tardyGraceMinutes`: Int (default: `10` -> scans after 08:10 are `TARDY`)
   * `absenceCutoffMinutes`: Int (configurable: e.g., `30` -> job runs at 08:30)
   * `timezone`: String (e.g., `"America/Mexico_City"`)
+  * `dropLeadingZeros`: Boolean (default `false`; badge `0042` matches roster `42`, for rosters that lost zeros in Excel)
+  * `absenceRunOn`: Date (last day the absence run finished; the run happens once per school day)
 * **Student:**
   * `id`: UUID (PK)
   * `credentialUid`: String (Unique, badge barcode/RFID string)
@@ -75,14 +78,18 @@
 
 ## 4. Business Logic & Constraints
 * **Scanner Ingestion & De-duplication:**
-  * Endpoint accepts `POST /api/v1/attendance/scan` with `{ "credentialUid": "CARD123" }`.
+  * Endpoint accepts `POST /api/v1/attendance/scan` with `{ "credentialUid": "CARD123" }`; gate PCs upload their offline queue with `POST /api/v1/attendance/scans` (see section 5).
+  * `credentialUid` is normalized in one place (`normalizeCredential`): trimmed, reader framing characters stripped (e.g. `;0042?`), leading zeros dropped when the school's `dropLeadingZeros` is on; matched case-insensitively. Roster imports must apply the same function.
+  * Scan time: the device's `scannedAt`, shifted by `server now − sentAt` (corrects drifting gate clocks). If the result is more than 2 min in the future or 24 h in the past, server time is used and the event is flagged `clockSkew`. The status and the record's date come from the scan time, not the upload time.
+  * Idempotency: an `eventId` already seen for the school returns the stored outcome; nothing is written or sent again.
   * If a record already exists for the student on `current_date` with status `PRESENT` or `TARDY`, reject with `409 Conflict: "Student already entered today"`. No check-out is supported.
   * Evaluate the arrival time (school timezone): up to `schoolStartTime + tardyGraceMinutes` → `PRESENT`; before `schoolStartTime + absenceCutoffMinutes` (the school's safe-time window) → `TARDY`; from the cutoff on → rejected with `422 OUTSIDE_WINDOW`, nothing saved and no message (the student goes to the office; the principal can override by hand).
   * If the student already has an `EXCUSED`/`ABSENT` record for today and scans inside the window, the record is updated to the scanned status (the note is kept).
-  * Guardians never receive correction messages.
-  * Send immediate "Student entered school" WhatsApp notification to the student's guardian. A failed send is logged and does not fail the scan (attendance is already saved).
+  * Guardians never receive correction messages: a queued in-window scan arriving after the absence notice updates the record silently.
+  * Send immediate "Student entered school" WhatsApp notification to the student's guardian, unless the scan is more than 2 h old (old offline queue). A failed send is logged and does not fail the scan (attendance is already saved).
 * **Automated Absence Evaluator (`node-cron`):**
-  * Runs every school morning at `schoolStartTime + absenceCutoffMinutes` in each school's timezone. Implemented as one `node-cron` tick per minute that re-reads active schools from the DB and evaluates those whose cutoff is now, so new schools, edited settings and deactivations apply without a restart. A tick missed while the server is down is not replayed.
+  * Runs once per school weekday from `schoolStartTime + absenceCutoffMinutes` in each school's timezone. Implemented as one `node-cron` tick per minute that re-reads active schools from the DB, so new schools, edited settings and deactivations apply without a restart.
+  * **Waits for gates:** while any of the school's scanner keys seen in the last 7 days is offline (no request for 2 min) or reports pending scans in its heartbeat, the run is delayed, at most 30 min; then it runs anyway. A tick missed while the server is down is caught up within the same 30 min. (Principal alert for a waiting run: Phase 15/17; logged for now.)
   * Finds all active students without an `AttendanceRecord` for today.
   * Inserts an `ABSENT` record for each missing student.
   * Emits automated "Unexcused Absence Alert" WhatsApp messages to respective guardians.
@@ -101,11 +108,17 @@
   * Only an authenticated `PRINCIPAL` (or `SUPERADMIN`) can manually alter an attendance record (e.g., changing `ABSENT` to `EXCUSED` or `PRESENT`). Staff cannot override.
 
 ## 5. API Contracts
-* `POST /api/v1/attendance/scan`
-  * Body: `{ "credentialUid": "STU-1004" }`
-  * Response 201: `{ "success": true, "student": "Juan Perez", "status": "PRESENT", "timestamp": "2026-09-09T07:54:12Z" }`
-  * Response 409: `{ "error": "ALREADY_SCANNED", "message": "Attendance already recorded for today" }`
+* `POST /api/v1/attendance/scan` (SCANNER, STAFF, PRINCIPAL)
+  * Body: `{ "credentialUid": "STU-1004", "eventId"?: "uuid", "scannedAt"?: ISO, "sentAt"?: ISO }` (`credentialUid` may be a JSON number)
+  * Response 201: `{ "success": true, "student": "Juan Perez", "grade": 1, "group": "A", "status": "PRESENT", "timestamp": "2026-09-09T07:54:12Z", "alreadyScanned": false, "clockSkew": false, "eventId": … }`
+  * Response 409: `{ "error": "ALREADY_SCANNED", "alreadyScanned": true, "student", "grade", "group", … }`
   * Response 422: `{ "error": "OUTSIDE_WINDOW", ... }` when scanned at or after `schoolStartTime + absenceCutoffMinutes`
+  * Response 404: `{ "error": "STUDENT_NOT_FOUND" }`
+* `POST /api/v1/attendance/scans` (gate offline queue upload)
+  * Body: `{ "sentAt": ISO, "events": [{ "eventId", "credentialUid", "scannedAt": ISO }] }` (1–500 events)
+  * Response 200: `{ "results": [{ "eventId", "result": "PRESENT|TARDY|ALREADY_SCANNED|OUTSIDE_WINDOW|NOT_FOUND", "studentName", "grade", "group", "scannedAt", "clockSkew" }] }`, one per event, in order. Safe to resend.
+* `POST /api/v1/gate/heartbeat` (SCANNER key only), every minute
+  * Body: `{ "pending": 0 }` → `{ "serverTime": ISO }`
 * `GET /api/v1/attendance/search?query=...`
   * Query parameters: `query` (can match student name, group like `"1-A"`, grade `"1"`, or teacher name).
   * Returns: List of matching students with current status and 30-day attendance overview.

@@ -111,17 +111,17 @@ Per `CLAUDE.md`, any task that adds UI or dependencies must first be added to `T
   - [x] UI: "Justificar falta" button in the student modal; excused days show the reason, who registered it and when.
   - Done when: tests show an excuse created at 07:30 → no ABSENT record and no message at the cutoff, a STAFF user can excuse but cannot change an existing record, and an excused student scanning at 08:40 → TARDY + entry message.
 
-- [ ] **Phase 14: Scan API v2 for real scanners** *(M)*
-  - [ ] `POST /api/v1/attendance/scan` accepts `{ credentialUid, scannedAt, eventId }`. `scannedAt` comes from the device so offline-buffered scans keep the real arrival time.
-  - [ ] Trust rules: accept `scannedAt` only if ≤ 2 min in the future and ≤ 24 h in the past; otherwise use server time and flag `clockSkew`. TARDY/PRESENT is computed from `scannedAt`.
-  - [ ] Idempotency: a `ScanEvent` table with a unique `eventId` per key. Replaying the same event returns the original result (safe offline retries).
-  - [ ] Normalize `credentialUid` (trim; strip scanner prefix/suffix characters; per-school option to drop leading zeros so the int `0042` and the string `"42"` match).
-  - [ ] Response includes `studentName`, `grade-group`, `status`, `alreadyScanned` for the gate screen.
-  - [ ] Each API key records `lastSeenAt` (scanner health).
-  - [ ] Clock correction: each upload also sends the device's current time (`sentAt`); the server shifts every `scannedAt` in the batch by `serverNow - sentAt` (old PCs often have drifting clocks).
-  - [ ] Batch upload: `POST /api/v1/attendance/scans` accepts many queued events in one request.
-  - [ ] Heartbeat: `POST /api/v1/gate/heartbeat { pending }` every minute per scanner.
-  - [ ] **Absence run waits for gates:** at the cutoff, if any of the school's scanners is offline or reports pending scans, delay that school's absence run until they sync (max 30 min), then run; alert the principal ("Escáner sin conexión, inasistencias en espera"). This prevents a false absence notice for a student whose scan is still queued on the gate PC.
+- [x] **Phase 14: Scan API v2 for real scanners** *(M)*
+  - [x] `POST /api/v1/attendance/scan` accepts `{ credentialUid, scannedAt, eventId }`. `scannedAt` comes from the device so offline-buffered scans keep the real arrival time.
+  - [x] Trust rules: accept `scannedAt` only if ≤ 2 min in the future and ≤ 24 h in the past; otherwise use server time and flag `clockSkew`. TARDY/PRESENT is computed from `scannedAt`.
+  - [x] Idempotency: a `ScanEvent` table with a unique `eventId` per key. Replaying the same event returns the original result (safe offline retries).
+  - [x] Normalize `credentialUid` (trim; strip scanner prefix/suffix characters; per-school option to drop leading zeros so the int `0042` and the string `"42"` match). Set `dropLeadingZeros` via `PATCH /api/v1/admin/schools/:id`.
+  - [x] Response includes `studentName`, `grade-group`, `status`, `alreadyScanned` for the gate screen.
+  - [x] Each API key records `lastSeenAt` (scanner health). Admin keys list returns `lastSeenAt` + `pendingScans` (no dashboard UI yet).
+  - [x] Clock correction: each upload also sends the device's current time (`sentAt`); the server shifts every `scannedAt` in the batch by `serverNow - sentAt` (old PCs often have drifting clocks).
+  - [x] Batch upload: `POST /api/v1/attendance/scans` accepts many queued events in one request.
+  - [x] Heartbeat: `POST /api/v1/gate/heartbeat { pending }` every minute per scanner.
+  - [x] **Absence run waits for gates:** at the cutoff, if any of the school's scanners is offline or reports pending scans, delay that school's absence run until they sync (max 30 min), then run. The principal alert ("Escáner sin conexión, inasistencias en espera") is only logged for now; it moves to Phase 15/17. This prevents a false absence notice for a student whose scan is still queued on the gate PC.
   - Done when: tests cover offline replay with an old timestamp → correct TARDY/PRESENT, a 7-minute-slow device clock → corrected status, duplicate `eventId` → same response with no second message, a future timestamp → server time, and a scanner with pending scans at cutoff → absence run delayed and then executed.
 
 - [ ] **Phase 15: Real WhatsApp delivery** *(L)*
@@ -129,7 +129,7 @@ Per `CLAUDE.md`, any task that adds UI or dependencies must first be added to `T
   - [ ] Worker (`npm run worker`, same codebase, separate process): sends pending rows with retry + backoff, respects WhatsApp rate limits, marks `FAILED` after N attempts.
   - [ ] WhatsApp Cloud API adapter behind the existing `NotifierService` interface; the console adapter stays for dev.
   - [ ] Meta-approved **utility templates in Spanish**: entrada, llegada tarde, inasistencia (no correction template: decided 2026-10-07). Per-school display name. Entry notifications on every scan are confirmed; budget ~2 messages/student/day.
-  - [ ] Expiry: "entered school" messages older than 2 h are not sent (marked `EXPIRED`); absence notices always send.
+  - [ ] Expiry: "entered school" messages older than 2 h are not sent (marked `EXPIRED`); absence notices always send. (Phase 14 already skips sending scans older than 2 h; the outbox needs the same rule at send time.)
   - [ ] One message per `eventId` (no duplicates on gate retries or worker restarts).
   - Decided 2026-10-07: **all notifications via WhatsApp** (entry + absence), **one WhatsApp number for the whole platform**, schools pay **per student** (price TBD). The ~US$0.18–0.30/student/month message cost leaves margin, but keep every cost control below.
   - [ ] Cost controls (see "Notification cost plan" below): one platform-wide WhatsApp number (aggregated volume tiers), utility-category templates only, sibling arrivals to the same phone merged into one message within 2 min, delivered-only billing tracked per school.

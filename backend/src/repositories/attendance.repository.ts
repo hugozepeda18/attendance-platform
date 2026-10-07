@@ -1,4 +1,4 @@
-import { AttendanceStatus, UpdatedByRole } from '@prisma/client';
+import { AttendanceStatus, Prisma, UpdatedByRole } from '@prisma/client';
 import prisma from '../lib/prisma';
 
 export async function findRecordByStudentAndDate(studentId: string, date: Date) {
@@ -77,4 +77,19 @@ export async function createExcusedRecords(
     data: rows.map((r) => ({ ...r, status: AttendanceStatus.EXCUSED })),
     skipDuplicates: true,
   });
+}
+
+export async function findScanEvent(schoolId: string, eventId: string) {
+  return prisma.scanEvent.findUnique({ where: { schoolId_eventId: { schoolId, eventId } } });
+}
+
+export async function createScanEvent(data: {
+  schoolId: string;
+  eventId: string;
+  credentialUid: string;
+  scannedAt: Date;
+  clockSkew: boolean;
+  result: Prisma.InputJsonValue;
+}) {
+  return prisma.scanEvent.create({ data });
 }

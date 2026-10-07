@@ -1,4 +1,4 @@
-import { evaluateStatus, getDateInTimezone } from '../../src/services/attendance.service';
+import { evaluateStatus, getDateInTimezone, normalizeCredential, resolveScanTime } from '../../src/services/attendance.service';
 
 const TZ = 'America/Mexico_City'; // UTC-6 (permanent, no DST since 2022)
 const START = '08:00';
@@ -66,5 +66,48 @@ describe('getDateInTimezone', () => {
     const lateNightMX = new Date('2026-09-10T05:00:00.000Z'); // UTC next day, but MX = Sep 9 23:00
     const result = getDateInTimezone(TZ, lateNightMX);
     expect(result.toISOString()).toBe('2026-09-09T00:00:00.000Z');
+  });
+});
+
+describe('resolveScanTime', () => {
+  const now = new Date('2026-10-06T15:00:00Z');
+  const min = 60_000;
+
+  it('uses server time when the device sends no scan time', () => {
+    expect(resolveScanTime(now)).toEqual({ at: now, clockSkew: false });
+  });
+
+  it('keeps an old offline scan time (up to 24 h)', () => {
+    const at = new Date(now.getTime() - 50 * min);
+    expect(resolveScanTime(now, at, now)).toEqual({ at, clockSkew: false });
+  });
+
+  it('shifts by server now − device sentAt (device clock 7 min slow)', () => {
+    const deviceScan = new Date(now.getTime() - 8 * min); // device clock shows 7 min too early
+    const deviceSent = new Date(now.getTime() - 7 * min);
+    expect(resolveScanTime(now, deviceScan, deviceSent).at).toEqual(new Date(now.getTime() - min));
+  });
+
+  it('falls back to server time and flags skew outside [−24 h, +2 min]', () => {
+    expect(resolveScanTime(now, new Date(now.getTime() + 3 * min))).toEqual({ at: now, clockSkew: true });
+    expect(resolveScanTime(now, new Date(now.getTime() + 2 * min)).clockSkew).toBe(false);
+    expect(resolveScanTime(now, new Date(now.getTime() - 25 * 60 * min))).toEqual({ at: now, clockSkew: true });
+  });
+});
+
+describe('normalizeCredential', () => {
+  it('trims whitespace and reader framing characters', () => {
+    expect(normalizeCredential('  CARD-1A-01\r\n', false)).toBe('CARD-1A-01');
+    expect(normalizeCredential(';0042?', false)).toBe('0042');
+  });
+
+  it('drops leading zeros only when the school asks for it', () => {
+    expect(normalizeCredential('0004521873', true)).toBe('4521873');
+    expect(normalizeCredential('0004521873', false)).toBe('0004521873');
+    expect(normalizeCredential('000', true)).toBe('0');
+  });
+
+  it('returns empty for a read with no code', () => {
+    expect(normalizeCredential(' ;? ', false)).toBe('');
   });
 });

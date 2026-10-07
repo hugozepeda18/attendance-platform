@@ -6,6 +6,7 @@ export const KEYS = {
   northScanner: 'ak_dev_north_scanner',
   northStaff: 'ak_dev_north_staff',
   northPrincipal: 'ak_dev_north_principal',
+  southScanner: 'ak_dev_south_scanner',
   southStaff: 'ak_dev_south_staff',
   southPrincipal: 'ak_dev_south_principal',
   superadmin: 'ak_dev_superadmin',
