@@ -93,9 +93,15 @@ Per `CLAUDE.md`, any task that adds UI or dependencies must first be added to `T
 ## Batch 1 — Go-live blockers (needed before the first real school)
 
 - [ ] **Phase 13: Fix the gate flow** *(S)*
-  - [ ] **Bug:** a student scanning after the cutoff (already `ABSENT`) gets a 500 because the scan tries to insert a second record for the day. Upgrade the existing `ABSENT` record to `TARDY` instead, and send a "llegó tarde" message that corrects the absence alert. Leave `EXCUSED` records alone.
+  - Attendance rule (confirmed 2026-10-07), example: school opens 08:00, safe-time window 60 min:
+    - scan by 08:00 + `tardyGraceMinutes` (0 = none) → `PRESENT`, guardian gets the "entered school" message
+    - scan before 09:00 (`absenceCutoffMinutes` = 60) → `TARDY`, guardian gets the "entered school, late" message
+    - no scan by 09:00 → `ABSENT`, guardian gets the absence notice (once). Students who never arrive have no scan time.
+    - **No correction messages** to guardians, ever.
+  - [ ] **Bug:** a scan after the cutoff (student already `ABSENT`) returns 500 (duplicate record). Handle it per the decision below.
+    - **OPEN DECISION:** student scans after the cutoff (e.g. 09:20): (A) stay `ABSENT` + keep scan time for the principal, (B) auto `TARDY`, (C) reject at the gate ("acude a dirección"). No guardian message in any option.
   - [ ] **Bug:** if the WhatsApp send fails after the record is saved, the scan returns 500 and a retry gets 409. Record first, then notify via the outbox (Phase 15), so the gate always gets a success.
-  - Done when: integration tests cover scan-after-absent → `TARDY` + correction message, and scan with a failing notifier → 201.
+  - Done when: integration tests cover each rule row above, the after-cutoff scan per the decision, and scan with a failing notifier → 201.
 
 - [ ] **Phase 14: Scan API v2 for real scanners** *(M)*
   - [ ] `POST /api/v1/attendance/scan` accepts `{ credentialUid, scannedAt, eventId }`. `scannedAt` comes from the device so offline-buffered scans keep the real arrival time.
@@ -104,33 +110,43 @@ Per `CLAUDE.md`, any task that adds UI or dependencies must first be added to `T
   - [ ] Normalize `credentialUid` (trim; strip scanner prefix/suffix characters; per-school option to drop leading zeros so the int `0042` and the string `"42"` match).
   - [ ] Response includes `studentName`, `grade-group`, `status`, `alreadyScanned` for the gate screen.
   - [ ] Each API key records `lastSeenAt` (scanner health).
-  - Done when: tests cover offline replay with an old timestamp → correct TARDY/PRESENT, duplicate `eventId` → same response with no second message, and a future timestamp → server time.
+  - [ ] Clock correction: each upload also sends the device's current time (`sentAt`); the server shifts every `scannedAt` in the batch by `serverNow - sentAt` (old PCs often have drifting clocks).
+  - [ ] Batch upload: `POST /api/v1/attendance/scans` accepts many queued events in one request.
+  - [ ] Heartbeat: `POST /api/v1/gate/heartbeat { pending }` every minute per scanner.
+  - [ ] **Absence run waits for gates:** at the cutoff, if any of the school's scanners is offline or reports pending scans, delay that school's absence run until they sync (max 30 min), then run; alert the principal ("Escáner sin conexión, inasistencias en espera"). This prevents a false absence notice for a student whose scan is still queued on the gate PC.
+  - Done when: tests cover offline replay with an old timestamp → correct TARDY/PRESENT, a 7-minute-slow device clock → corrected status, duplicate `eventId` → same response with no second message, a future timestamp → server time, and a scanner with pending scans at cutoff → absence run delayed and then executed.
 
 - [ ] **Phase 15: Real WhatsApp delivery** *(L)*
   - [ ] `NotificationOutbox` table (type, studentId, phone, template, params, status, attempts, lastError, sentAt). Scans and the absence job only insert rows (same DB transaction as the attendance write).
   - [ ] Worker (`npm run worker`, same codebase, separate process): sends pending rows with retry + backoff, respects WhatsApp rate limits, marks `FAILED` after N attempts.
   - [ ] WhatsApp Cloud API adapter behind the existing `NotifierService` interface; the console adapter stays for dev.
-  - [ ] Meta-approved **utility templates in Spanish**: entrada, llegada tarde, inasistencia, corrección de inasistencia. Per-school display name.
+  - [ ] Meta-approved **utility templates in Spanish**: entrada, llegada tarde, inasistencia (no correction template: decided 2026-10-07). Per-school display name. Entry notifications on every scan are confirmed; budget ~2 messages/student/day.
+  - [ ] Expiry: "entered school" messages older than 2 h are not sent (marked `EXPIRED`); absence notices always send.
+  - [ ] One message per `eventId` (no duplicates on gate retries or worker restarts).
   - [ ] Delivery webhook updates status (sent/delivered/read/failed); show it in the student timeline.
   - [ ] Validate guardian phones as E.164 on create/import.
   - Done when: the outbox survives a backend restart mid-send (no lost or duplicate messages), and a failing provider retries and then marks `FAILED`.
 
-- [ ] **Phase 16: Gate scanner client (Windows)** *(M)* — see "Scanner client plan" below
-  - [ ] Kiosk page `https://<slug>.<domain>/gate`, unlocked with a SCANNER key, large name + color + sound feedback.
-  - [ ] Offline queue (IndexedDB) of `{ eventId, credentialUid, scannedAt }`, auto-flush on reconnect, pending counter on screen.
-  - [ ] Windows setup script (PowerShell): Chrome kiosk shortcut in Startup, disable sleep, enable time sync.
-  - [ ] Optional native agent only if a school's reader is serial/COM (not keyboard-wedge).
+- [ ] **Phase 16: Gate scanner client (Windows, Python)** *(M)* — see "Scanner client plan" below
+  - [ ] Python, **standard library only** (`sqlite3`, `urllib`, `tkinter`, `winsound`, `uuid`, `threading`), built for Python 3.8 so it also runs on Windows 7; shipped as one `.exe` (PyInstaller) that starts with Windows.
+  - [ ] Store-first: every scan is written to local SQLite (`eventId`, `credentialUid`, `scannedAt`) before anything else.
+  - [ ] Instant feedback from a local roster cache (name + badge only, refreshed hourly): full-screen green PRESENT / amber TARDY / blue already scanned / red unknown, plus a beep.
+  - [ ] Background sender: uploads the queue in batches (3 s timeout, exponential backoff), sends `sentAt` for clock correction, heartbeat every minute. No separate connection test (the upload itself is the test).
+  - [ ] On-screen banner when offline: "Sin conexión, N pendientes".
+  - [ ] Config file: school URL + SCANNER key. `gate-setup.ps1`: autostart, disable sleep, enable Windows time sync.
+  - [ ] `pyserial` support only if a school's reader is serial/COM.
   - Done when: a pilot with real hardware passes 50 scans online, cable unplugged, 20 scans, reconnect; every scan gets the correct status and exactly one WhatsApp each.
 
-- [ ] **Phase 17: Student roster management** *(M–L)*
+- [ ] **Phase 17: Student roster management** *(M)*
   - [ ] `Student.active` (withdrawn students stop being marked absent).
   - [ ] Principal UI: add / edit / deactivate students; assign or reassign the badge.
-  - [ ] CSV import (preview → confirm) with row-level errors (duplicate badge, bad phone, unknown group). Template downloadable.
-  - [ ] Grades and groups come from the school's data, not hardcoded `[1,2,3]` / `['A','B']` in `App.tsx`.
-  - Done when: a 600-row CSV imports in < 10 s with an accurate error report; the UI shows the school's real groups.
+  - [ ] Groups come from the school's data, not hardcoded `['A','B']` in `App.tsx`. Grades stay 1–3: **secundaria only** (decided 2026-10-07).
+  - [ ] **Deferred to the first client:** the initial roster comes from the client's Excel files, migrated with Python scripts written together at that time (no in-app import for now).
+  - Done when: the UI shows the school's real groups, and a deactivated student is never marked absent.
 
 - [ ] **Phase 18: School calendar** *(M)*
-  - [ ] Non-school days (holidays, vacations, "suspensión de clases") per school; the platform admin can push the SEP national calendar to all schools.
+  - [ ] Absence run only on school days: skip weekends and every non-school day of the **SEP calendar for educación básica** (official holidays, vacations, Consejo Técnico Escolar days). Dates are loaded from the official SEP publication for the school year (cited in code), not typed from memory.
+  - [ ] The platform admin loads the SEP calendar once per school year for all schools; each school can add its own days (suspensión, school anniversary).
   - [ ] Absence job skips non-school days. Today the job would send absence alerts to **every parent** on a holiday.
   - [ ] Analytics ignore non-school days.
   - Done when: a test shows a holiday → no ABSENT records and no messages.
@@ -168,18 +184,14 @@ Per `CLAUDE.md`, any task that adds UI or dependencies must first be added to `T
 
 ## Scanner client plan (Phase 14 + 16)
 
-**What the gate does:** badge → reader → Windows PC → `POST /scan { credentialUid, scannedAt, eventId }` with the school's SCANNER key → backend saves the attendance in one transaction and queues the WhatsApp message → the worker sends it. The gate PC never talks to WhatsApp or the database.
+**What the gate does:** badge → reader → Windows PC (Python program) → local SQLite queue → background upload `POST /scans { events: [{ eventId, credentialUid, scannedAt }], sentAt }` with the school's SCANNER key → backend saves attendance + queues WhatsApp in one transaction → worker sends WhatsApp. The gate PC never talks to WhatsApp or the database, and never waits for the internet.
 
-**Input formats:** readers send a string (`CARD-1A-01`), a number (`0004521873`) or an RFID UID (`04A2B1C3`). Normalize in **one place on the server** (Phase 14), so changing a rule doesn't require updating every gate PC. The client sends exactly what the reader typed.
+**Input formats:** readers send a string (`CARD-1A-01`), a number (`0004521873`) or an RFID UID (`04A2B1C3`). The client sends exactly what the reader produced; normalization lives in **one place on the server** (Phase 14).
 
-**Client choice (depends on the reader hardware):**
-1. **USB keyboard-wedge reader (most barcode/RFID readers): kiosk web page.** Chrome in kiosk mode opens `https://<slug>.<domain>/gate`, and the reader "types" the code + Enter into a focused input. Nothing to install, updates itself, same codebase.
-2. **Serial/COM or SDK reader: small native agent** (Node packaged as `.exe`, run as a Windows service via NSSM). It reads the port and uses the same offline queue + API. Build it only if a school needs it.
+**Why store-first instead of a connection test:** a weak link changes second to second, so a test can pass and the next request still fail. Testing also adds delay to every scan and uses bandwidth. Writing to disk first and sending in the background gives the same result as direct sending on a good connection and never blocks the line on a bad one.
 
-**Gate screen behavior:**
-- Green, name and "Bienvenido" for PRESENT; amber "Retardo" for TARDY; blue "Ya registrado" for a duplicate scan; red "Credencial no encontrada" for an unknown badge. A sound for each, and the screen clears after 3 s.
-- The input keeps focus permanently (refocus on blur), so a mis-click can't break scanning.
-- While offline, an orange banner shows "Sin conexión, N registros pendientes"; scans still give immediate local feedback ("Registrado, se enviará al reconectar").
-- Device clock: the setup script forces Windows time sync. The server rejects or flags timestamps that are off (Phase 14).
+**Gate screen:** green "Bienvenido" (PRESENT), amber "Retardo" (TARDY), blue "Ya registrado", red "Credencial no encontrada", each with a beep, cleared after 3 s. Orange banner "Sin conexión, N pendientes" while offline. The window keeps focus so keyboard-type readers always type into it.
 
-**Setup script (`gate-setup.ps1`, run once as admin):** asks for the school URL and SCANNER key, creates the Chrome kiosk shortcut in Startup, disables sleep and screen-off, and enables NTP sync.
+**Old PCs:** the server corrects drifting clocks using `sentAt`; the program is stdlib-only and built for Python 3.8 (Windows 7 compatible).
+
+**Absence run safety:** the server delays a school's 09:00 absence run while any of its gates is offline or has unsent scans (max 30 min) and alerts the principal, so a queued scan never becomes a false absence notice.
