@@ -98,8 +98,7 @@ Per `CLAUDE.md`, any task that adds UI or dependencies must first be added to `T
     - scan before 09:00 (`absenceCutoffMinutes` = 60) → `TARDY`, guardian gets the "entered school, late" message
     - no scan by 09:00 → `ABSENT`, guardian gets the absence notice (once). Students who never arrive have no scan time.
     - **No correction messages** to guardians, ever.
-  - [ ] **Bug:** a scan after the cutoff (student already `ABSENT`) returns 500 (duplicate record). Handle it per the decision below.
-    - **OPEN DECISION:** student scans after the cutoff (e.g. 09:20): (A) stay `ABSENT` + keep scan time for the principal, (B) auto `TARDY`, (C) reject at the gate ("acude a dirección"). No guardian message in any option.
+  - [ ] **Bug:** a scan after the cutoff (student already `ABSENT`) returns 500 (duplicate record). **Decided (C):** reject it with `422 OUTSIDE_WINDOW`, save nothing, send nothing; the gate shows red "Fuera de horario, acude a dirección". Keep it minimal: the door may be unattended and the principal can still override by hand.
   - [ ] **Bug:** if the WhatsApp send fails after the record is saved, the scan returns 500 and a retry gets 409. Record first, then notify via the outbox (Phase 15), so the gate always gets a success.
   - Done when: integration tests cover each rule row above, the after-cutoff scan per the decision, and scan with a failing notifier → 201.
 
@@ -123,6 +122,8 @@ Per `CLAUDE.md`, any task that adds UI or dependencies must first be added to `T
   - [ ] Meta-approved **utility templates in Spanish**: entrada, llegada tarde, inasistencia (no correction template: decided 2026-10-07). Per-school display name. Entry notifications on every scan are confirmed; budget ~2 messages/student/day.
   - [ ] Expiry: "entered school" messages older than 2 h are not sent (marked `EXPIRED`); absence notices always send.
   - [ ] One message per `eventId` (no duplicates on gate retries or worker restarts).
+  - [ ] Cost controls (see "Notification cost plan" below): one platform-wide WhatsApp number (aggregated volume tiers), utility-category templates only, sibling arrivals to the same phone merged into one message within 2 min, delivered-only billing tracked per school.
+  - [ ] `NotificationChannel` per guardian (`WHATSAPP | PUSH | NONE`) and per message type, so entry messages can move to a free channel without code changes.
   - [ ] Delivery webhook updates status (sent/delivered/read/failed); show it in the student timeline.
   - [ ] Validate guardian phones as E.164 on create/import.
   - Done when: the outbox survives a backend restart mid-send (no lost or duplicate messages), and a failing provider retries and then marks `FAILED`.
@@ -134,6 +135,10 @@ Per `CLAUDE.md`, any task that adds UI or dependencies must first be added to `T
   - [ ] Background sender: uploads the queue in batches (3 s timeout, exponential backoff), sends `sentAt` for clock correction, heartbeat every minute. No separate connection test (the upload itself is the test).
   - [ ] On-screen banner when offline: "Sin conexión, N pendientes".
   - [ ] Config file: school URL + SCANNER key. `gate-setup.ps1`: autostart, disable sleep, enable Windows time sync.
+  - [ ] Packaging the `.exe`: PyInstaller one-file build script in the repo (`gate/build.ps1`); version shown on screen; local rotating log file for support.
+  - [ ] Antivirus/SmartScreen: unsigned PyInstaller executables are often flagged. Start with a documented "allow" step in setup; buy a code-signing certificate once several schools run it.
+  - [ ] Updates: the server reports the latest gate version in the heartbeat response; the screen shows "Actualización disponible". Manual replace for now; auto-update only if school count makes it worth it.
+  - [ ] After-cutoff scan: red "Fuera de horario, acude a dirección" with a distinct beep (Phase 13 decision C).
   - [ ] `pyserial` support only if a school's reader is serial/COM.
   - Done when: a pilot with real hardware passes 50 scans online, cable unplugged, 20 scans, reconnect; every scan gets the correct status and exactly one WhatsApp each.
 
@@ -181,6 +186,21 @@ Per `CLAUDE.md`, any task that adds UI or dependencies must first be added to `T
 - Check-out at the end of the day · parent portal · billing integration · per-subject (class period) attendance.
 
 ---
+
+## Notification cost plan (Phase 15)
+
+Facts (check Meta's official pricing page before launch): WhatsApp bills **per delivered template message**; Mexico utility rate is about **US$0.0085** per message, with cheaper tiers at higher monthly volume. Utility templates sent inside the 24 h customer-service window were free from July 2025, but reportedly stop being free on 2026-10-01.
+
+Estimate for one school of 600 students: ~20 school days × 600 entry messages + ~5 % absences ≈ 12,600 messages/month ≈ **US$107/month** (≈ US$0.18 per student per month) if everything goes through WhatsApp.
+
+Cheapest approach, in order of savings:
+1. **Channel split (largest saving, ~95 %).** Absence notices (the urgent ~5 %) always go by WhatsApp. Entry notifications go by a free channel: web push from an installable page (PWA) the parent opens once from the school link, or a Telegram bot. WhatsApp entry messages become an optional paid add-on per school.
+2. **One platform WhatsApp number for all schools.** Volume from every school adds up toward the cheaper tiers, and Meta verification is done once. The message text carries the school's name.
+3. **Utility category only.** Attendance messages qualify as utility; never let a template get classified as marketing (much higher rate).
+4. **Merge siblings.** Two children of the same guardian arriving within 2 min → one message.
+5. **Pass the cost through.** Price WhatsApp volume into the school's plan (e.g. per student per month) and show messages sent per school in the admin dashboard (Phase 29).
+
+Rejected: unofficial WhatsApp Web automation (free, but against WhatsApp's terms; numbers get banned, which would leave every school without notices). SMS costs more than WhatsApp; email is free but parents don't read it.
 
 ## Scanner client plan (Phase 14 + 16)
 
