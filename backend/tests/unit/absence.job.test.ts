@@ -1,30 +1,31 @@
-import cron from 'node-cron';
-import { cronExpressionFor, scheduleAbsenceJob } from '../../src/jobs/absence.job';
-import * as schoolRepo from '../../src/repositories/school.repository';
+import { isAbsenceCutoffNow } from '../../src/jobs/absence.job';
 
-jest.mock('node-cron', () => ({ schedule: jest.fn() }));
+const mx = { schoolStartTime: '08:00', absenceCutoffMinutes: 30, timezone: 'America/Mexico_City' };
 
-describe('cronExpressionFor', () => {
-  it('fires at start time + cutoff on weekdays', () => {
-    expect(cronExpressionFor({ schoolStartTime: '08:00', absenceCutoffMinutes: 30 })).toBe('0 30 8 * * 1-5');
-    expect(cronExpressionFor({ schoolStartTime: '07:45', absenceCutoffMinutes: 30 })).toBe('0 15 8 * * 1-5');
+describe('isAbsenceCutoffNow', () => {
+  // 2026-10-06 is a Tuesday. Mexico City is UTC-6 (no DST).
+  it('is true at exactly start + cutoff in the school timezone', () => {
+    expect(isAbsenceCutoffNow(mx, new Date('2026-10-06T14:30:00Z'))).toBe(true);
+    expect(isAbsenceCutoffNow(mx, new Date('2026-10-06T14:30:59Z'))).toBe(true);
   });
-});
 
-describe('scheduleAbsenceJob', () => {
-  it('schedules one task per active school in its own timezone', async () => {
-    jest.spyOn(schoolRepo, 'listActiveSchoolConfigs').mockResolvedValue([
-      { id: '1', schoolId: 'a', schoolStartTime: '08:00', tardyGraceMinutes: 10, absenceCutoffMinutes: 30, timezone: 'America/Mexico_City' },
-      { id: '2', schoolId: 'b', schoolStartTime: '07:00', tardyGraceMinutes: 10, absenceCutoffMinutes: 45, timezone: 'America/Tijuana' },
-    ]);
+  it('is false one minute before or after', () => {
+    expect(isAbsenceCutoffNow(mx, new Date('2026-10-06T14:29:00Z'))).toBe(false);
+    expect(isAbsenceCutoffNow(mx, new Date('2026-10-06T14:31:00Z'))).toBe(false);
+  });
 
-    await scheduleAbsenceJob();
+  it('respects each school timezone', () => {
+    const tijuana = { ...mx, timezone: 'America/Tijuana' }; // UTC-7 in October (PDT)
+    expect(isAbsenceCutoffNow(tijuana, new Date('2026-10-06T15:30:00Z'))).toBe(true);
+    expect(isAbsenceCutoffNow(tijuana, new Date('2026-10-06T14:30:00Z'))).toBe(false);
+  });
 
-    const calls = (cron.schedule as jest.Mock).mock.calls;
-    expect(calls).toHaveLength(2);
-    expect(calls[0][0]).toBe('0 30 8 * * 1-5');
-    expect(calls[0][2]).toEqual({ timezone: 'America/Mexico_City' });
-    expect(calls[1][0]).toBe('0 45 7 * * 1-5');
-    expect(calls[1][2]).toEqual({ timezone: 'America/Tijuana' });
+  it('handles cutoffs that cross the hour (07:45 + 30 = 08:15)', () => {
+    expect(isAbsenceCutoffNow({ ...mx, schoolStartTime: '07:45' }, new Date('2026-10-06T14:15:00Z'))).toBe(true);
+  });
+
+  it('skips weekends', () => {
+    expect(isAbsenceCutoffNow(mx, new Date('2026-10-10T14:30:00Z'))).toBe(false); // Saturday
+    expect(isAbsenceCutoffNow(mx, new Date('2026-10-11T14:30:00Z'))).toBe(false); // Sunday
   });
 });

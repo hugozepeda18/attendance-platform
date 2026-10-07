@@ -3,6 +3,7 @@ import { generateToken, hashPassword, hashToken, safeEqual, verifyPassword } fro
 import { findApiKeyByHash, findSchoolById } from '../repositories/school.repository';
 import {
   createSession,
+  findAdminByEmail,
   findSessionByHash,
   findUserForLogin,
   revokeSession,
@@ -11,7 +12,8 @@ import {
 export interface AuthContext {
   role: Role | 'SUPERADMIN';
   schoolId: string | null; // null = super-admin without a selected school
-  userId?: string; // set for signed-in people (sessions), absent for API keys
+  userId?: string; // set for signed-in school users, absent for API keys
+  adminId?: string; // set for signed-in platform admins
   sessionId?: string;
 }
 
@@ -28,20 +30,29 @@ export async function resolveBearerToken(
   token: string,
   schoolIdHeader: string | string[] | undefined,
 ): Promise<ResolveResult> {
-  const superKey = process.env.SUPERADMIN_API_KEY;
-  if (superKey && safeEqual(token, superKey)) {
+  // Super-admin may act inside one school by naming it in x-school-id.
+  async function superAdmin(extra: Partial<AuthContext>): Promise<ResolveResult> {
     const schoolId = typeof schoolIdHeader === 'string' ? schoolIdHeader : null;
     if (schoolId && !(await findSchoolById(schoolId))) {
       return { ok: false, status: 404, error: 'SCHOOL_NOT_FOUND', message: 'x-school-id does not match a school' };
     }
-    return { ok: true, auth: { role: 'SUPERADMIN', schoolId } };
+    return { ok: true, auth: { role: 'SUPERADMIN', schoolId, ...extra } };
   }
+
+  // Emergency/scripting fallback; day-to-day the owner signs in with a PlatformAdmin account.
+  const superKey = process.env.SUPERADMIN_API_KEY;
+  if (superKey && safeEqual(token, superKey)) return superAdmin({});
 
   if (token.startsWith('st_')) {
     const session = await findSessionByHash(hashToken(token));
-    if (!session || session.revokedAt || session.expiresAt <= new Date() || !session.user.active) return invalid;
-    if (!session.user.school.active) return inactive;
+    if (!session || session.revokedAt || session.expiresAt <= new Date()) return invalid;
+    if (session.admin) {
+      if (!session.admin.active) return invalid;
+      return superAdmin({ adminId: session.admin.id, sessionId: session.id });
+    }
     const { user } = session;
+    if (!user || !user.active) return invalid;
+    if (!user.school.active) return inactive;
     return { ok: true, auth: { role: user.role, schoolId: user.schoolId, userId: user.id, sessionId: session.id } };
   }
 
@@ -98,6 +109,25 @@ export async function login(schoolSlug: string, email: string, password: string)
     user: { id: user.id, name: user.name, email: user.email, role: user.role },
     school: { id: user.school.id, name: user.school.name },
   };
+}
+
+// Platform owner login (admin.<domain>). Same throttle and timing protections as school login.
+export async function adminLogin(email: string, password: string) {
+  const throttleKey = `admin:${email}`;
+  if (isThrottled(throttleKey)) throw new LoginThrottledError();
+
+  const admin = await findAdminByEmail(email);
+  const valid = await verifyPassword(password, admin?.passwordHash ?? (await dummyHash));
+  if (!admin || !valid || !admin.active) {
+    recordFailure(throttleKey);
+    return null;
+  }
+
+  failures.delete(throttleKey);
+  const token = generateToken('st');
+  const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
+  await createSession({ adminId: admin.id, tokenHash: hashToken(token), expiresAt });
+  return { token, expiresAt, admin: { id: admin.id, name: admin.name, email: admin.email } };
 }
 
 export async function logout(auth: AuthContext): Promise<void> {

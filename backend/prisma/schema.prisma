@@ -38,13 +38,27 @@ model User {
   @@unique([schoolId, email])
 }
 
-// Opaque login sessions. Only the sha256 of the token is stored.
+// Platform owner accounts (SUPERADMIN). Not tied to any school; sign in at admin.<domain>.
+model PlatformAdmin {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  name         String
+  passwordHash String
+  active       Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  sessions     Session[]
+}
+
+// Opaque login sessions for a school User or a PlatformAdmin (exactly one is set).
+// Only the sha256 of the token is stored.
 model Session {
-  id        String    @id @default(uuid())
-  userId    String
-  user      User      @relation(fields: [userId], references: [id])
-  tokenHash String    @unique
-  createdAt DateTime  @default(now())
+  id        String         @id @default(uuid())
+  userId    String?
+  user      User?          @relation(fields: [userId], references: [id])
+  adminId   String?
+  admin     PlatformAdmin? @relation(fields: [adminId], references: [id])
+  tokenHash String         @unique
+  createdAt DateTime       @default(now())
   expiresAt DateTime
   revokedAt DateTime?
 }

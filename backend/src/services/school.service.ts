@@ -1,9 +1,11 @@
 import { Prisma, Role } from '@prisma/client';
-import { generateToken, hashToken } from '../lib/tokens';
+import { generateToken, hashPassword, hashToken } from '../lib/tokens';
 import {
   createApiKey,
+  ConfigFields,
   createSchoolWithConfig,
   findSchoolById,
+  findSchoolDetail,
   listApiKeys,
   listSchools,
   revokeApiKey,
@@ -26,14 +28,20 @@ export async function onboardSchool(input: {
   tardyGraceMinutes: number;
   absenceCutoffMinutes: number;
   timezone: string;
+  principal?: { email: string; name: string; password: string };
 }) {
   const keys = STARTER_ROLES.map((role) => ({ role, label: `initial ${role.toLowerCase()}`, plain: generateToken('ak') }));
-  const { name, slug, ...config } = input;
+  const { name, slug, principal, ...config } = input;
 
   const school = await createSchoolWithConfig({
     name,
     slug,
     config,
+    principal: principal && {
+      email: principal.email,
+      name: principal.name,
+      passwordHash: await hashPassword(principal.password),
+    },
     keys: keys.map(({ role, label, plain }) => ({ role, label, keyHash: hashToken(plain) })),
   }).catch(rethrowSlugConflict);
 
@@ -54,7 +62,26 @@ export async function getSchools() {
   }));
 }
 
-export async function editSchool(id: string, data: { active?: boolean; slug?: string }) {
+export async function getSchoolDetail(id: string) {
+  const s = await findSchoolDetail(id);
+  if (!s) return null;
+  return {
+    id: s.id,
+    name: s.name,
+    slug: s.slug,
+    active: s.active,
+    createdAt: s.createdAt,
+    config: s.config,
+    studentCount: s._count.students,
+    userCount: s._count.users,
+    activeKeyCount: s._count.apiKeys,
+  };
+}
+
+export async function editSchool(
+  id: string,
+  data: { active?: boolean; slug?: string; name?: string; config?: Partial<ConfigFields> },
+) {
   if (!(await findSchoolById(id))) return null;
   return updateSchool(id, data).catch(rethrowSlugConflict);
 }

@@ -1,8 +1,8 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
-import { login, logout, LoginThrottledError, SchoolInactiveError } from '../services/auth.service';
+import { adminLogin, login, logout, LoginThrottledError, SchoolInactiveError } from '../services/auth.service';
 import { findSchoolById, findSchoolBySlug } from '../repositories/school.repository';
-import { findUserInSchool } from '../repositories/user.repository';
+import { findAdminById, findUserInSchool } from '../repositories/user.repository';
 import { emailSchema, slugSchema } from '../lib/validation';
 
 const LoginSchema = z.object({
@@ -37,16 +37,44 @@ export async function postLogin(req: Request, res: Response): Promise<void> {
   }
 }
 
+const AdminLoginSchema = z.object({
+  email: emailSchema,
+  password: z.string().min(1, 'password is required').max(200),
+});
+
+export async function postAdminLogin(req: Request, res: Response): Promise<void> {
+  const parsed = AdminLoginSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'INVALID_INPUT', message: parsed.error.errors[0].message });
+    return;
+  }
+  try {
+    const result = await adminLogin(parsed.data.email, parsed.data.password);
+    if (!result) {
+      res.status(401).json({ error: 'INVALID_CREDENTIALS', message: 'Incorrect email or password' });
+      return;
+    }
+    res.json(result);
+  } catch (err) {
+    if (err instanceof LoginThrottledError) {
+      res.status(429).json({ error: 'TOO_MANY_ATTEMPTS', message: 'Too many failed attempts. Try again in 15 minutes.' });
+    } else {
+      console.error('[adminLogin]', err);
+      res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Internal server error' });
+    }
+  }
+}
+
 export async function postLogout(req: Request, res: Response): Promise<void> {
   await logout(req.auth!);
   res.status(204).end();
 }
 
 export async function getMe(req: Request, res: Response): Promise<void> {
-  const { role, schoolId, userId } = req.auth!;
+  const { role, schoolId, userId, adminId } = req.auth!;
   const [school, user] = await Promise.all([
     schoolId ? findSchoolById(schoolId) : null,
-    userId && schoolId ? findUserInSchool(schoolId, userId) : null,
+    userId && schoolId ? findUserInSchool(schoolId, userId) : adminId ? findAdminById(adminId) : null,
   ]);
   res.json({
     role,

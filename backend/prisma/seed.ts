@@ -118,6 +118,12 @@ async function main() {
 
   for (const school of DEV_SCHOOLS) await seedSchool(school);
 
+  await prisma.platformAdmin.upsert({
+    where: { email: 'owner@platform.test' },
+    update: {},
+    create: { email: 'owner@platform.test', name: 'Platform Owner (dev)', passwordHash: await hashPassword(DEV_PASSWORD) },
+  });
+
   const count = await prisma.student.count();
   console.log(`Seed complete. Schools: ${DEV_SCHOOLS.length}, total students: ${count}`);
 }

@@ -12,3 +12,16 @@ export const KEYS = {
 };
 
 export const auth = (key: string) => ({ Authorization: `Bearer ${key}` });
+
+export const DEV_PASSWORD = 'dev-password-123';
+export const OWNER_EMAIL = 'owner@platform.test';
+
+// Removes every school (and its dependents) not created by the seed.
+export async function cleanupCreatedSchools(prisma: import('@prisma/client').PrismaClient) {
+  const where = { schoolId: { notIn: [NORTH, SOUTH] } };
+  await prisma.session.deleteMany({ where: { user: where } });
+  await prisma.user.deleteMany({ where });
+  await prisma.apiKey.deleteMany({ where });
+  await prisma.schoolConfig.deleteMany({ where });
+  await prisma.school.deleteMany({ where: { id: { notIn: [NORTH, SOUTH] } } });
+}

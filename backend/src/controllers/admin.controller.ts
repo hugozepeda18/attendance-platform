@@ -4,12 +4,13 @@ import {
   onboardSchool,
   getSchools,
   editSchool,
+  getSchoolDetail,
   SlugTakenError,
   issueApiKey,
   getApiKeys,
   revokeKey,
 } from '../services/school.service';
-import { slugSchema } from '../lib/validation';
+import { emailSchema, passwordSchema, slugSchema } from '../lib/validation';
 
 const isTimezone = (tz: string) => {
   try {
@@ -20,18 +21,36 @@ const isTimezone = (tz: string) => {
   }
 };
 
+const configFields = {
+  schoolStartTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'schoolStartTime must be HH:mm'),
+  tardyGraceMinutes: z.number().int().min(0).max(240),
+  absenceCutoffMinutes: z.number().int().min(0).max(600),
+  timezone: z.string().refine(isTimezone, 'timezone must be a valid IANA timezone'),
+};
+
 const CreateSchoolSchema = z.object({
   name: z.string().trim().min(1, 'name is required'),
   slug: slugSchema,
-  schoolStartTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'schoolStartTime must be HH:mm').default('08:00'),
-  tardyGraceMinutes: z.number().int().min(0).max(240).default(10),
-  absenceCutoffMinutes: z.number().int().min(0).max(600).default(30),
-  timezone: z.string().refine(isTimezone, 'timezone must be a valid IANA timezone').default('America/Mexico_City'),
+  schoolStartTime: configFields.schoolStartTime.default('08:00'),
+  tardyGraceMinutes: configFields.tardyGraceMinutes.default(10),
+  absenceCutoffMinutes: configFields.absenceCutoffMinutes.default(30),
+  timezone: configFields.timezone.default('America/Mexico_City'),
+  principal: z
+    .object({ email: emailSchema, name: z.string().trim().min(1, 'principal name is required'), password: passwordSchema })
+    .optional(),
 });
 
 const UpdateSchoolSchema = z
-  .object({ active: z.boolean().optional(), slug: slugSchema.optional() })
-  .refine((v) => v.active !== undefined || v.slug !== undefined, 'nothing to update');
+  .object({
+    active: z.boolean().optional(),
+    slug: slugSchema.optional(),
+    name: z.string().trim().min(1).optional(),
+    schoolStartTime: configFields.schoolStartTime.optional(),
+    tardyGraceMinutes: configFields.tardyGraceMinutes.optional(),
+    absenceCutoffMinutes: configFields.absenceCutoffMinutes.optional(),
+    timezone: configFields.timezone.optional(),
+  })
+  .refine((v) => Object.values(v).some((x) => x !== undefined), 'nothing to update');
 
 const IssueKeySchema = z.object({
   role: z.enum(['SCANNER', 'STAFF', 'PRINCIPAL']),
@@ -74,7 +93,14 @@ export const listSchools = wrap('listSchools', async (_req, res) => {
 export const patchSchool = wrap('patchSchool', async (req, res) => {
   const parsed = UpdateSchoolSchema.safeParse(req.body);
   if (!parsed.success) return badInput(res, parsed.error);
-  const school = await editSchool(String(req.params.id), parsed.data);
+  const { active, slug, name, ...config } = parsed.data;
+  const school = await editSchool(String(req.params.id), { active, slug, name, config });
+  if (!school) return notFound(res);
+  res.json(school);
+});
+
+export const getSchool = wrap('getSchool', async (req, res) => {
+  const school = await getSchoolDetail(String(req.params.id));
   if (!school) return notFound(res);
   res.json(school);
 });

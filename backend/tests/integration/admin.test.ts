@@ -1,21 +1,10 @@
 import request from 'supertest';
 import app from '../../src/index';
 import prisma from '../../src/lib/prisma';
-import { auth, KEYS, NORTH } from '../helpers';
-
-const SEEDED = ['default-school', 'school-b'];
-
-async function cleanupCreatedSchools() {
-  const where = { schoolId: { notIn: SEEDED } };
-  await prisma.session.deleteMany({ where: { user: where } });
-  await prisma.user.deleteMany({ where });
-  await prisma.apiKey.deleteMany({ where });
-  await prisma.schoolConfig.deleteMany({ where });
-  await prisma.school.deleteMany({ where: { id: { notIn: SEEDED } } });
-}
+import { auth, cleanupCreatedSchools, KEYS, NORTH } from '../helpers';
 
 afterAll(async () => {
-  await cleanupCreatedSchools();
+  await cleanupCreatedSchools(prisma);
   await prisma.$disconnect();
 });
 

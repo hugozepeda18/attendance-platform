@@ -20,11 +20,20 @@ export async function listActiveSchoolConfigs() {
   return prisma.schoolConfig.findMany({ where: { school: { active: true } } });
 }
 
+export type ConfigFields = {
+  schoolStartTime: string;
+  tardyGraceMinutes: number;
+  absenceCutoffMinutes: number;
+  timezone: string;
+};
+
+// School, config, keys and optional first principal are written in one statement: all or nothing.
 export async function createSchoolWithConfig(data: {
   name: string;
   slug: string;
-  config: { schoolStartTime: string; tardyGraceMinutes: number; absenceCutoffMinutes: number; timezone: string };
+  config: ConfigFields;
   keys: { role: Role; label: string; keyHash: string }[];
+  principal?: { email: string; name: string; passwordHash: string };
 }) {
   return prisma.school.create({
     data: {
@@ -32,8 +41,19 @@ export async function createSchoolWithConfig(data: {
       slug: data.slug,
       config: { create: data.config },
       apiKeys: { create: data.keys },
+      ...(data.principal ? { users: { create: { ...data.principal, role: 'PRINCIPAL' } } } : {}),
     },
     include: { config: true },
+  });
+}
+
+export async function findSchoolDetail(id: string) {
+  return prisma.school.findUnique({
+    where: { id },
+    include: {
+      config: true,
+      _count: { select: { students: true, users: true, apiKeys: { where: { revokedAt: null } } } },
+    },
   });
 }
 
@@ -60,6 +80,14 @@ export async function findSchoolBySlug(slug: string) {
   return prisma.school.findUnique({ where: { slug } });
 }
 
-export async function updateSchool(id: string, data: { active?: boolean; slug?: string }) {
-  return prisma.school.update({ where: { id }, data });
+export async function updateSchool(
+  id: string,
+  data: { active?: boolean; slug?: string; name?: string; config?: Partial<ConfigFields> },
+) {
+  const { config, ...school } = data;
+  return prisma.school.update({
+    where: { id },
+    data: { ...school, ...(config && Object.keys(config).length ? { config: { update: config } } : {}) },
+    include: { config: true },
+  });
 }

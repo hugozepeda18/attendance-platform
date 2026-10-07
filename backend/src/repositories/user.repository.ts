@@ -29,12 +29,23 @@ export async function updateUser(
   return prisma.user.update({ where: { id }, data, select: publicUser });
 }
 
-export async function createSession(data: { userId: string; tokenHash: string; expiresAt: Date }) {
+export async function createSession(data: { userId?: string; adminId?: string; tokenHash: string; expiresAt: Date }) {
   return prisma.session.create({ data });
 }
 
 export async function findSessionByHash(tokenHash: string) {
-  return prisma.session.findUnique({ where: { tokenHash }, include: { user: { include: { school: true } } } });
+  return prisma.session.findUnique({
+    where: { tokenHash },
+    include: { user: { include: { school: true } }, admin: true },
+  });
+}
+
+export async function findAdminByEmail(email: string) {
+  return prisma.platformAdmin.findUnique({ where: { email } });
+}
+
+export async function findAdminById(id: string) {
+  return prisma.platformAdmin.findUnique({ where: { id } });
 }
 
 export async function revokeSession(id: string) {
