@@ -176,24 +176,19 @@ Per `CLAUDE.md`, any task that adds UI or dependencies must first be added to `T
   - [x] Analytics: the group view says "No classes today: <reason>"; the student's 30-day grid greys out days without classes; the 30-day rate already counts only days with records. Dev seed history follows the calendar.
   - Done when: a test shows a holiday → no ABSENT records and no messages. ✔ (`calendar.test.ts`, `unit/calendar.test.ts`)
 
-- [ ] **Phase 19: Spanish UI** *(M)*
-  - [ ] All UI text in Spanish (es-MX), dates in local format. Keep the strings in one file.
+- [x] **Phase 19: Spanish UI** *(M)* — done 2026-10-08
+  - [x] All UI text in Spanish (es-MX), including the admin dashboard; dates in es-MX format ("Mié 7 de oct"). Shared words, labels, formats and error handling in `frontend/src/strings.ts`; a sentence used by one screen stays in that screen.
+  - [x] The API's rule messages that users see (excuses, change requests, calendar, roster, users, school address) are written in Spanish at the source; generic validation errors show "Revise los datos del formulario".
 
-- [ ] **Phase 19b: Phone-friendly** *(M)* — do together with Phase 19, since both touch every screen
-  - Audit 2026-10-07 at iPhone size (390 px): layouts mostly stack correctly and search works well, but:
-    - the school navbar is ~27 px wider than the phone: the sign-out button is cut off and tab labels wrap ("By / Grade");
-    - user tables (school Staff page and admin Users) hide Status / Reset password / Deactivate off-screen behind a sideways scroll with no visual hint;
-    - in the group view the student list sits below 5 KPI cards and 2 charts (~1,500 px of scrolling), so the phone question "who is missing?" is at the bottom;
-    - "Override", "Revoke" and similar actions are small text links, not finger-sized buttons; the help text says "Click";
-    - sessions live in `sessionStorage`, so when the phone closes the tab the user has to log in again every time.
-  - [ ] Phone navigation: compact top bar (school name + menu) and a bottom tab bar (Hoy / Grupos / Buscar / Personal); nothing wider than the screen.
-  - [ ] Group view on phones: compact one-line KPI strip, student list first (missing students on top), charts collapsed under "Ver gráficas".
-  - [ ] Tables become stacked cards on phones (Staff, admin Users, device keys); every action is a full button ≥ 44 px tall.
-  - [ ] Student modal as a full-screen sheet on phones, with large "Justificar falta" (Phase 13b) and "Cambiar estado" buttons; text says "Toca", not "Click".
-  - [ ] "Recordarme en este teléfono": optional 30-day session stored in `localStorage` (revocable, shown in the user's sessions); default stays 12 h.
-  - [ ] Installable: web app manifest + icon so staff can "Agregar a pantalla de inicio" and open it like an app (no app store, no new dependencies).
-  - [ ] Keep the phone-size screenshot check (headless Chrome via DevTools protocol, no dependencies) in `frontend/scripts/phone-check.mjs`.
-  - Done when: the phone check shows no element wider than 390 px on every screen, every action button is ≥ 44 px, and a staff user can go from opening the app to "Justificar falta" saved in ≤ 4 taps after search.
+- [x] **Phase 19b: Phone-friendly** *(M)* — done 2026-10-08
+  - [x] Phone navigation: compact top bar (school name + sign out) and a bottom tab bar (Grupos / Grados / Solicitudes / Calendario + Alumnos / Personal for the principal); search sits on top of Grupos and Grados.
+  - [x] Group view on phones: one-line counts, student list first (absent, then not yet scanned, on top), charts folded under "Ver gráficas".
+  - [x] Staff, students, admin schools and device keys are stacked cards; every action is a full button ≥ 44 px.
+  - [x] Student window is a full-screen sheet on phones with large "Justificar falta" / "Registrar llegada tarde" buttons; "Solicitar cambio" / "Cambiar estado" opens a bottom sheet; text says "Toque".
+  - [x] "Recordarme en este teléfono (30 días)": `remember: true` on login → 30-day session in `localStorage`; revoked like any session (sign out, password reset, deactivation). There is no per-user sessions list yet.
+  - [x] Installable: `manifest.webmanifest` + icons (generated PNGs, no dependency) so staff can "Agregar a pantalla de inicio".
+  - [x] Phone check: `frontend/scripts/phone-check.mjs` (headless Chrome over the DevTools protocol, no dependencies) visits 16 screens at 390 px and fails on anything wider than the screen or any tap target under 44 px; screenshots in `scripts/phone-shots/` (git-ignored).
+  - Done when ✔: the phone check passes on every screen, and search → student → "Justificar falta" → reason → save is 4 taps (the script checks the save button is ready).
 
 - [ ] **Phase 20: Production readiness** *(M)*
   - [ ] Dockerfiles (backend, worker, frontend static), production compose, env checklist.

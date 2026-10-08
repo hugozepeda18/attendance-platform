@@ -1,13 +1,13 @@
 import { useState, type ReactNode } from 'react';
-import axios from 'axios';
 import { Copy, Check } from 'lucide-react';
+import { errorText } from '../strings';
 
 export const inputClass =
-  'w-full px-3 py-2 rounded-lg border border-slate-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500';
+  'w-full px-3 min-h-[44px] rounded-lg border border-slate-300 text-base sm:text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500';
 export const primaryButton =
-  'px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50';
+  'px-4 min-h-[44px] rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50';
 export const secondaryButton =
-  'px-4 py-2 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50';
+  'px-4 min-h-[44px] rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50';
 
 export const TIMEZONES = [
   'America/Mexico_City', 'America/Monterrey', 'America/Merida', 'America/Cancun', 'America/Chihuahua',
@@ -16,9 +16,7 @@ export const TIMEZONES = [
   'America/Denver', 'America/Los_Angeles', 'Europe/Madrid',
 ];
 
-export function apiMessage(err: unknown, fallback: string): string {
-  return (axios.isAxiosError(err) && err.response?.data?.message) || fallback;
-}
+export const apiMessage = errorText;
 
 export function Card({ title, children, action }: { title: string; children: ReactNode; action?: ReactNode }) {
   return (
@@ -49,10 +47,10 @@ export function CopyValue({ value }: { value: string }) {
       <code className="flex-1 min-w-0 truncate px-2 py-1.5 rounded bg-slate-100 text-xs text-slate-800">{value}</code>
       <button
         type="button"
-        aria-label="Copy"
-        title="Copy"
+        aria-label="Copiar"
+        title="Copiar"
         onClick={() => navigator.clipboard.writeText(value).then(() => setCopied(true)).catch(() => {})}
-        className="p-1.5 rounded text-slate-500 hover:text-slate-800 hover:bg-slate-100"
+        className="w-11 h-11 flex items-center justify-center shrink-0 rounded text-slate-500 hover:text-slate-800 hover:bg-slate-100"
       >
         {copied ? <Check size={15} className="text-green-600" /> : <Copy size={15} />}
       </button>

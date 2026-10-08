@@ -9,6 +9,7 @@ const LoginSchema = z.object({
   school: slugSchema,
   email: emailSchema,
   password: z.string().min(1, 'password is required').max(200),
+  remember: z.boolean().optional(),
 });
 
 export async function postLogin(req: Request, res: Response): Promise<void> {
@@ -19,7 +20,7 @@ export async function postLogin(req: Request, res: Response): Promise<void> {
   }
 
   try {
-    const result = await login(parsed.data.school, parsed.data.email, parsed.data.password);
+    const result = await login(parsed.data.school, parsed.data.email, parsed.data.password, parsed.data.remember);
     if (!result) {
       res.status(401).json({ error: 'INVALID_CREDENTIALS', message: 'Incorrect email or password' });
       return;

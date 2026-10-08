@@ -81,7 +81,7 @@ describe('School calendar (Phase 18)', () => {
     expect(list.body.days[1]).toEqual({ date: '2026-10-30', label: 'Consejo Técnico Escolar', source: 'SEP' });
     expect(list.body.days.some((d: { label: string }) => d.label === 'Fin de semana')).toBe(false);
 
-    expect((await addDay({ date: '2026-10-05', label: 'x' })).body.message).toMatch(/Past/);
+    expect((await addDay({ date: '2026-10-05', label: 'x' })).body.message).toMatch(/pasados/);
     expect((await addDay({ date: '2026-11-16', label: 'x' })).body.message).toMatch(/Revolución/);
     expect((await addDay({ date: '2026-10-21', label: 'x' })).body.message).toMatch(/Aniversario/);
     expect((await addDay({ date: '2026-10-22', label: 'x' }, staff)).status).toBe(403);

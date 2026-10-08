@@ -58,13 +58,13 @@ export async function requestChange(auth: AuthContext, input: ChangeInput) {
   if (!config) throw new Error('School configuration not found');
   const today = getDateInTimezone(config.timezone);
   const date = new Date(`${input.date}T00:00:00.000Z`);
-  if (date > today) throw new ChangeRuleError('FUTURE_DATE', 'Future days are excused in advance, not changed');
+  if (date > today) throw new ChangeRuleError('FUTURE_DATE', 'Los días futuros se justifican por adelantado, no se cambian');
   if ((today.getTime() - date.getTime()) / DAY_MS >= MAX_PAST_DAYS) {
-    throw new ChangeRuleError('TOO_OLD', `Only the last ${MAX_PAST_DAYS} days can be changed`);
+    throw new ChangeRuleError('TOO_OLD', `Solo se pueden cambiar los últimos ${MAX_PAST_DAYS} días`);
   }
 
   const current = await prisma.attendanceRecord.findUnique({ where: { studentId_date: { studentId: student.id, date } } });
-  if (current?.status === input.status) throw new ChangeRuleError('NO_CHANGE', `The student is already ${input.status} that day`);
+  if (current?.status === input.status) throw new ChangeRuleError('NO_CHANGE', 'El alumno ya tiene ese estado ese día');
 
   if (auth.role !== 'STAFF') {
     const record = await applyChange(student.id, date, input.status, input.reason, auth);
@@ -72,7 +72,7 @@ export async function requestChange(auth: AuthContext, input: ChangeInput) {
   }
 
   if (await findPendingRequest(schoolId, student.id, date)) {
-    throw new ChangeRuleError('ALREADY_REQUESTED', 'There is already a pending request for this student and day');
+    throw new ChangeRuleError('ALREADY_REQUESTED', 'Ya hay una solicitud pendiente para este alumno y día');
   }
   const request = await createChangeRequest({
     schoolId,
@@ -107,7 +107,7 @@ export async function decideChange(auth: AuthContext, id: string, approve: boole
   const request = await findChangeRequest(auth.schoolId!, id);
   if (!request) return null;
   const decided = await decideChangeRequest(id, approve ? RequestState.APPROVED : RequestState.REJECTED, auth.userId ?? null);
-  if (!decided) throw new ChangeRuleError('ALREADY_DECIDED', 'This request was already approved or rejected');
+  if (!decided) throw new ChangeRuleError('ALREADY_DECIDED', 'Esta solicitud ya fue aprobada o rechazada');
   if (approve) await applyChange(request.studentId, request.date, request.toStatus, request.reason, auth);
   return { id, state: approve ? RequestState.APPROVED : RequestState.REJECTED };
 }

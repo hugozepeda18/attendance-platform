@@ -27,6 +27,7 @@ const invalid: ResolveResult = { ok: false, status: 401, error: 'UNAUTHENTICATED
 const inactive: ResolveResult = { ok: false, status: 403, error: 'SCHOOL_INACTIVE', message: 'This school account is deactivated' };
 
 export const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
+export const REMEMBER_TTL_MS = 30 * 24 * 60 * 60 * 1000; // "Recordarme en este teléfono"; revoked like any session
 
 export async function resolveBearerToken(
   token: string,
@@ -94,7 +95,7 @@ const dummyHash = hashPassword('timing-equalizer');
 export class LoginThrottledError extends Error {}
 export class SchoolInactiveError extends Error {}
 
-export async function login(schoolSlug: string, email: string, password: string) {
+export async function login(schoolSlug: string, email: string, password: string, remember = false) {
   const throttleKey = `${schoolSlug}:${email}`;
   if (isThrottled(throttleKey)) throw new LoginThrottledError();
 
@@ -108,7 +109,7 @@ export async function login(schoolSlug: string, email: string, password: string)
 
   failures.delete(throttleKey);
   const token = generateToken('st');
-  const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
+  const expiresAt = new Date(Date.now() + (remember ? REMEMBER_TTL_MS : SESSION_TTL_MS));
   await createSession({ userId: user.id, tokenHash: hashToken(token), expiresAt });
 
   return {

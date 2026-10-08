@@ -11,8 +11,8 @@ export async function getPublicSchool(slug: string): Promise<{ name: string }> {
   return data;
 }
 
-export async function login(school: string, email: string, password: string): Promise<string> {
-  const { data } = await api.post<{ token: string }>('/api/v1/auth/login', { school, email, password });
+export async function login(school: string, email: string, password: string, remember = false): Promise<string> {
+  const { data } = await api.post<{ token: string }>('/api/v1/auth/login', { school, email, password, remember });
   return data.token;
 }
 

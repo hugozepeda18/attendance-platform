@@ -101,6 +101,7 @@
 * **Authentication & Roles:**
   * All tenant routes require `Authorization: Bearer <token>`. The token is either a user session (`st_…`, from login) or a device API key (`ak_…`), and resolves server-side to `{ role, schoolId, userId? }`; client role headers are ignored.
   * Each school uses only its own URL (`<slug>.<platform domain>`). The frontend reads the slug from the hostname and sends it with the login request; the user never types it.
+  * "Recordarme en este teléfono" (`remember: true` on login): a 30-day session instead of 12 h, kept in `localStorage`; revoked like any other session.
   * Login is throttled: 5 failed attempts per school+email lock that pair for 15 minutes (in-memory, per backend process).
   * Deactivating a user, changing their role or resetting their password revokes their sessions immediately. A principal cannot deactivate or demote their own account.
   * `SCANNER`: scan only. `STAFF`: scan + search/analytics. `PRINCIPAL`: all of STAFF + manual overrides.

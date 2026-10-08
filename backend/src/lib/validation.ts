@@ -5,8 +5,8 @@ const RESERVED_SLUGS = ['www', 'api', 'admin', 'app', 'mail', 'static'];
 // Becomes a DNS label (<slug>.<domain>): lowercase letters, digits, inner hyphens.
 export const slugSchema = z
   .string()
-  .regex(/^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/, 'slug must be 1-40 lowercase letters, digits or hyphens')
-  .refine((s) => !RESERVED_SLUGS.includes(s), 'slug is reserved');
+  .regex(/^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/, 'Use de 1 a 40 minúsculas, números o guiones')
+  .refine((s) => !RESERVED_SLUGS.includes(s), 'Esa dirección está reservada');
 
 export const emailSchema = z.string().trim().toLowerCase().email('a valid email is required');
 

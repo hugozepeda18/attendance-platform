@@ -57,7 +57,7 @@ describe('Support sessions', () => {
 
   it('tells the new-school wizard whether an address is free', async () => {
     const check = (slug: string) => request(app).get('/api/v1/admin/slug-available').query({ slug }).set(auth(owner));
-    expect((await check('norte')).body).toEqual({ available: false, reason: 'Another school already uses this address' });
+    expect((await check('norte')).body).toEqual({ available: false, reason: 'Otra escuela ya usa esa dirección' });
     expect((await check('nueva-secundaria')).body).toEqual({ available: true });
     expect((await check('admin')).body.available).toBe(false);
     expect((await check('Mal Nombre')).body.available).toBe(false);

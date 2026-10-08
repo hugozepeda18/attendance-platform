@@ -71,6 +71,7 @@ npm test   # uses the same database as the dev server: it deletes all attendance
 
 # In /frontend:
 npm run build
+node scripts/phone-check.mjs   # with backend + frontend running and seeded: every screen at phone width (390 px)
 ```
 
 ## 5. Simulating a Scanner Event (Curl Test)

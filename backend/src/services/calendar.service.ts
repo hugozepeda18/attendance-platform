@@ -43,15 +43,15 @@ export async function getCalendar(schoolId: string, from: Date) {
 
 // From today on, on a day that would otherwise have classes (past absences are fixed with change requests).
 export async function addSchoolDay(schoolId: string, today: Date, ymd: string, label: string) {
-  if (toDate(ymd) < today) throw new CalendarRuleError('Past days cannot be added');
+  if (toDate(ymd) < today) throw new CalendarRuleError('No se pueden agregar días pasados');
   const already = await nonSchoolDay(schoolId, toDate(ymd));
-  if (already) throw new CalendarRuleError(`There are no classes that day already: ${already}`);
+  if (already) throw new CalendarRuleError(`Ese día ya no hay clases: ${already}`);
   try {
     const day = await createSchoolDay({ schoolId, date: toDate(ymd), label });
     return { id: day.id, date: ymd, label: day.label, source: 'SCHOOL' as const };
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-      throw new CalendarRuleError('That day is already in the calendar'); // two saves at once
+      throw new CalendarRuleError('Ese día ya está en el calendario'); // two saves at once
     }
     throw err;
   }

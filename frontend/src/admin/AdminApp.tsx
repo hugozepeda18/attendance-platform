@@ -37,17 +37,17 @@ export default function AdminApp() {
     <div className="min-h-screen bg-slate-50">
       <header className="bg-white border-b border-slate-200 shadow-sm">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
-          <button onClick={() => setView({ page: 'list' })} className="flex items-center gap-2">
+          <button onClick={() => setView({ page: "list" })} className="min-h-[44px] flex items-center gap-2">
             <ShieldCheck className="text-indigo-600" size={24} />
-            <span className="font-bold text-slate-800 text-lg">Platform admin</span>
+            <span className="font-bold text-slate-800 text-lg">Administración</span>
           </button>
           <div className="flex items-center gap-2 text-sm text-slate-600">
             <span className="hidden sm:inline">{me.user?.name}</span>
             <button
               onClick={handleSignOut}
-              title="Sign out"
-              aria-label="Sign out"
-              className="p-2 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100"
+              title="Cerrar sesión"
+              aria-label="Cerrar sesión"
+              className="w-11 h-11 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100"
             >
               <LogOut size={16} />
             </button>

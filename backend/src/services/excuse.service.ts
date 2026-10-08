@@ -31,17 +31,17 @@ export async function excuseInAdvance(
   const from = toDate(input.from);
   const to = toDate(input.to ?? input.from);
 
-  if (to < from) throw new ExcuseRuleError('"to" must be on or after "from"');
+  if (to < from) throw new ExcuseRuleError('La fecha final debe ser igual o posterior a la inicial');
   if ((to.getTime() - from.getTime()) / DAY_MS >= MAX_RANGE_DAYS) {
-    throw new ExcuseRuleError(`An excuse can cover at most ${MAX_RANGE_DAYS} days`);
+    throw new ExcuseRuleError(`Un justificante cubre como máximo ${MAX_RANGE_DAYS} días`);
   }
-  if (from < today) throw new ExcuseRuleError('Past days cannot be excused here; request a change from the principal');
+  if (from < today) throw new ExcuseRuleError('Los días pasados no se justifican aquí; solicite un cambio a la dirección');
   if (
     from.getTime() === today.getTime() &&
     evaluateStatus(new Date(), config.schoolStartTime, config.tardyGraceMinutes, config.absenceCutoffMinutes, config.timezone) ===
       'OUTSIDE_WINDOW'
   ) {
-    throw new ExcuseRuleError("Today's attendance window has closed; request a change from the principal");
+    throw new ExcuseRuleError('El horario de entrada de hoy ya cerró; solicite un cambio a la dirección');
   }
 
   // School days only: weekends, SEP days off and the school's own days are skipped.
@@ -51,7 +51,7 @@ export async function excuseInAdvance(
     const d = new Date(t);
     if (!daysOff.has(toYmd(d))) days.push(d);
   }
-  if (days.length === 0) throw new ExcuseRuleError('There are no school days in that range');
+  if (days.length === 0) throw new ExcuseRuleError('No hay días de clases en ese periodo');
 
   const existing = new Set(
     (await findRecordsByStudentAndDateRange(student.id, from, to)).map((r) => toYmd(r.date)),

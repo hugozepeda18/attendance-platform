@@ -25,9 +25,9 @@ const UpdateUserSchema = z
 
 function fail(res: Response, err: unknown, name: string): void {
   if (err instanceof EmailTakenError) {
-    res.status(409).json({ error: 'EMAIL_TAKEN', message: 'A user with this email already exists in this school' });
+    res.status(409).json({ error: 'EMAIL_TAKEN', message: 'Ya existe un usuario con ese correo en esta escuela' });
   } else if (err instanceof SelfLockoutError) {
-    res.status(400).json({ error: 'SELF_LOCKOUT', message: 'You cannot deactivate or change the role of your own account' });
+    res.status(400).json({ error: 'SELF_LOCKOUT', message: 'No puede desactivar ni cambiar el rol de su propia cuenta' });
   } else {
     console.error(`[${name}]`, err);
     res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Internal server error' });

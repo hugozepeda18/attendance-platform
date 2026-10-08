@@ -46,6 +46,14 @@ describe('POST /api/v1/auth/login', () => {
     expect(search.status).toBe(200);
   });
 
+  it('"Recordarme": a 30-day session instead of 12 h', async () => {
+    const day = 24 * 60 * 60 * 1000;
+    const plain = await request(app).post('/api/v1/auth/login').send({ school: 'norte', email: 'staff@norte.test', password: PASSWORD });
+    const remembered = await request(app).post('/api/v1/auth/login').send({ school: 'norte', email: 'staff@norte.test', password: PASSWORD, remember: true });
+    expect(new Date(plain.body.expiresAt).getTime() - Date.now()).toBe(day / 2);
+    expect(new Date(remembered.body.expiresAt).getTime() - Date.now()).toBe(30 * day);
+  });
+
   it('accepts the email case-insensitively', async () => {
     expect((await login('norte', 'Principal@Norte.TEST')).status).toBe(200);
   });

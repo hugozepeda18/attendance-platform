@@ -14,6 +14,7 @@ import { listGroups } from './services/students';
 import { listChangeRequests } from './services/attendance';
 import { getMe, logout } from './services/auth';
 import { getToken, clearToken } from './services/session';
+import { T } from './strings';
 
 export default function App() {
   const [me, setMe] = useState<Me | null>(null);
@@ -42,7 +43,7 @@ export default function App() {
   }, [me, refreshKey]);
 
   // The principal's notification: pending requests badge, checked every minute.
-  // ponytail: polling; the WhatsApp alert to the principal comes with Phase 15.
+  // ponytail: polling; the principal also gets a WhatsApp for each new request (Phase 15).
   useEffect(() => {
     if (!me?.school || !isPrincipal) return;
     const check = () => listChangeRequests('PENDING').then((r) => setPendingRequests(r.pending ?? 0)).catch(() => {});
@@ -90,13 +91,13 @@ export default function App() {
       {role === 'SUPERADMIN' && (
         <div role="status" className="bg-amber-100 border-b border-amber-300 text-amber-900 text-sm">
           <div className="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between gap-3">
-            <span><strong>Support mode</strong> · {me.user?.name ?? 'Platform admin'} · changes are recorded as platform support</span>
-            <button onClick={handleSignOut} className="font-medium underline shrink-0">Exit</button>
+            <span><strong>Modo soporte</strong> · {me.user?.name ?? 'Administración'} · los cambios quedan registrados como soporte de la plataforma</span>
+            <button onClick={handleSignOut} className="font-medium underline shrink-0">Salir</button>
           </div>
         </div>
       )}
 
-      <main className="max-w-7xl mx-auto px-4 py-6 space-y-5">
+      <main className="max-w-7xl mx-auto px-4 pt-4 md:pt-6 pb-24 md:pb-6 space-y-5">
         {activeTab === 'staff' ? (
           <StaffView currentUserId={me.user?.id ?? null} />
         ) : activeTab === 'students' ? (
@@ -117,13 +118,13 @@ export default function App() {
                   <button
                     key={g}
                     onClick={() => setSelectedGrade(g)}
-                    className={`px-4 py-2 rounded-lg border text-sm font-medium transition-all
+                    className={`min-w-[44px] min-h-[44px] px-4 rounded-lg border text-sm font-medium transition-all
                       ${selectedGrade === g
                         ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
                         : 'bg-white text-slate-600 border-slate-200 hover:border-blue-400'
                       }`}
                   >
-                    Grade {g}
+                    {T.grade(g)}
                   </button>
                 ))}
               </div>
@@ -134,13 +135,13 @@ export default function App() {
                     <button
                       key={g}
                       onClick={() => setSelectedGroup(g)}
-                      className={`px-4 py-2 rounded-lg border text-sm font-medium transition-all
+                      className={`min-w-[44px] min-h-[44px] px-4 rounded-lg border text-sm font-medium transition-all
                         ${selectedGroup === g
                           ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
                           : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-400'
                         }`}
                     >
-                      Group {g}
+                      {g}
                     </button>
                   ))}
                 </div>
@@ -154,12 +155,11 @@ export default function App() {
               <GroupView
                 grade={selectedGrade}
                 group={selectedGroup}
-                role={role}
                 onStudentSelect={setSelectedStudentId}
                 refreshKey={refreshKey}
               />
             ) : (
-              <p className="py-20 text-center text-slate-400">No students in grade {selectedGrade} yet.</p>
+              <p className="py-20 text-center text-slate-400">Aún no hay alumnos en {T.grade(selectedGrade)} grado.</p>
             )}
           </>
         )}

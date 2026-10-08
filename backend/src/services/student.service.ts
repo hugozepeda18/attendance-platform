@@ -12,7 +12,7 @@ import { normalizeCredential } from './attendance.service';
 
 export class BadgeTakenError extends Error {
   constructor(public holder: string) {
-    super(`Badge already assigned to ${holder}`);
+    super(`Esa credencial ya es de ${holder}`);
   }
 }
 
@@ -71,6 +71,6 @@ export async function editStudent(schoolId: string, id: string, input: Partial<S
 
 // Two principals saving the same badge at once: the database unique index decides.
 function rethrowBadge(err: unknown): never {
-  if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') throw new BadgeTakenError('another student');
+  if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') throw new BadgeTakenError('otro alumno');
   throw err;
 }

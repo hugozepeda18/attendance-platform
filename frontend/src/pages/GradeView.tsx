@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Users } from 'lucide-react';
 import { getGroupAnalytics } from '../services/attendance';
 import type { GroupAnalytics } from '../types';
+import { STATUS, T } from '../strings';
 
 interface Props {
   grade: number;
@@ -35,17 +36,15 @@ export default function GradeView({ grade, groups, refreshKey, onGroupSelect }: 
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-20 text-slate-400">
-        Loading grade {grade} overview…
-      </div>
+      <div className="flex items-center justify-center py-20 text-slate-400">{T.loading}</div>
     );
   }
 
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-xl font-bold text-slate-800">Grade {grade} Overview</h2>
-        <p className="text-sm text-slate-400">All groups — click a card to view group details</p>
+        <h2 className="text-xl font-bold text-slate-800">{T.grade(grade)} grado</h2>
+        <p className="text-sm text-slate-400">Todos los grupos; toque uno para ver el detalle</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -61,25 +60,25 @@ export default function GradeView({ grade, groups, refreshKey, onGroupSelect }: 
               <div className="flex items-center gap-2">
                 <Users size={18} className="text-blue-500" />
                 <span className="font-bold text-slate-700 text-base">
-                  Group {group}
+                  Grupo {group}
                 </span>
               </div>
               {data && (
                 <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
-                  {data.thirtyDayRate.toFixed(1)}% 30-day
+                  {data.thirtyDayRate.toFixed(1)}% en 30 días
                 </span>
               )}
             </div>
 
             {error || !data ? (
-              <p className="text-sm text-slate-400">No data available</p>
+              <p className="text-sm text-slate-400">Sin datos</p>
             ) : (
               <div className="grid grid-cols-4 gap-2 text-center">
                 {[
                   { label: 'Total', value: data.today.total, cls: 'text-slate-700' },
-                  { label: 'Present', value: data.today.present, cls: 'text-green-600' },
-                  { label: 'Tardy', value: data.today.tardy, cls: 'text-amber-600' },
-                  { label: 'Absent', value: data.today.absent, cls: 'text-red-600' },
+                  { label: STATUS.PRESENT, value: data.today.present, cls: 'text-green-600' },
+                  { label: STATUS.TARDY, value: data.today.tardy, cls: 'text-amber-600' },
+                  { label: 'Faltas', value: data.today.absent, cls: 'text-red-600' },
                 ].map(({ label, value, cls }) => (
                   <div key={label}>
                     <p className={`text-2xl font-bold ${cls}`}>{value}</p>

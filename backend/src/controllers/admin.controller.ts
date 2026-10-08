@@ -77,7 +77,7 @@ function wrap(name: string, fn: (req: Request, res: Response) => Promise<void>) 
       await fn(req, res);
     } catch (err) {
       if (err instanceof SlugTakenError) {
-        res.status(409).json({ error: 'SLUG_TAKEN', message: 'Another school already uses this slug' });
+        res.status(409).json({ error: 'SLUG_TAKEN', message: 'Otra escuela ya usa esa dirección' });
         return;
       }
       console.error(`[${name}]`, err);
@@ -140,7 +140,7 @@ export const slugAvailable = wrap('slugAvailable', async (req, res) => {
     return;
   }
   const taken = await findSchoolBySlug(parsed.data);
-  res.json(taken ? { available: false, reason: 'Another school already uses this address' } : { available: true });
+  res.json(taken ? { available: false, reason: 'Otra escuela ya usa esa dirección' } : { available: true });
 });
 
 export const createSupportSession = wrap('createSupportSession', async (req, res) => {
