@@ -25,7 +25,11 @@ export default function SignIn({ onSignedIn, admin = false }: Props) {
     if (admin || !slug) return;
     getPublicSchool(slug)
       .then((s) => setSchoolName(s.name))
-      .catch(() => setSchoolMissing(true));
+      // Only a 404 means the address is wrong; a down/unreachable server shows up as a sign-in error instead.
+      .catch((err) => {
+        if (axios.isAxiosError(err) && err.response?.status === 404) setSchoolMissing(true);
+        else console.error('[SignIn] school lookup failed:', err);
+      });
   }, []);
 
   async function handleSubmit(e: FormEvent) {
@@ -46,7 +50,9 @@ export default function SignIn({ onSignedIn, admin = false }: Props) {
             ? 'This school account is deactivated.'
             : status === 401
               ? 'Incorrect email or password.'
-              : 'Could not sign in. Please try again.',
+              : status === undefined
+                ? 'Cannot reach the server. Is the backend running?'
+                : 'Could not sign in. Please try again.',
       );
     } finally {
       setLoading(false);

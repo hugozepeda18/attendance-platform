@@ -11,6 +11,14 @@ import { scheduleAbsenceJob } from './jobs/absence.job';
 const app = express();
 
 app.use(express.json());
+// ponytail: one line per request to stdout (never headers/body, so no tokens or student data); a log library when we ship to a host that needs JSON logs
+if (process.env.NODE_ENV !== 'test') {
+  app.use((req, res, next) => {
+    const t = Date.now();
+    res.on('finish', () => console.log(`${req.method} ${req.path} ${res.statusCode} ${Date.now() - t}ms`));
+    next();
+  });
+}
 app.use(healthRouter);
 app.use('/api/v1', authRouter);
 app.use('/api/v1', attendanceRouter);
