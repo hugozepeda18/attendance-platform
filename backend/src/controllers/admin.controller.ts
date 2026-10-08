@@ -11,6 +11,8 @@ import {
   revokeKey,
 } from '../services/school.service';
 import { emailSchema, passwordSchema, slugSchema, whatsappSchema } from '../lib/validation';
+import { startSupportSession } from '../services/auth.service';
+import { findSchoolById, findSchoolBySlug } from '../repositories/school.repository';
 
 const isTimezone = (tz: string) => {
   try {
@@ -35,6 +37,7 @@ const CreateSchoolSchema = z.object({
   tardyGraceMinutes: configFields.tardyGraceMinutes.default(10),
   absenceCutoffMinutes: configFields.absenceCutoffMinutes.default(30),
   timezone: configFields.timezone.default('America/Mexico_City'),
+  principalWhatsApp: whatsappSchema.optional(),
   principal: z
     .object({ email: emailSchema, name: z.string().trim().min(1, 'principal name is required'), password: passwordSchema })
     .optional(),
@@ -125,4 +128,24 @@ export const deleteKey = wrap('deleteKey', async (req, res) => {
   const revoked = await revokeKey(String(req.params.id), String(req.params.keyId));
   if (!revoked) return notFound(res, 'Active key not found');
   res.status(204).end();
+});
+
+// New-school wizard: tells while typing whether an address can be used.
+export const slugAvailable = wrap('slugAvailable', async (req, res) => {
+  const parsed = slugSchema.safeParse(String(req.query.slug ?? ''));
+  if (!parsed.success) {
+    res.json({ available: false, reason: parsed.error.errors[0].message });
+    return;
+  }
+  const taken = await findSchoolBySlug(parsed.data);
+  res.json(taken ? { available: false, reason: 'Another school already uses this address' } : { available: true });
+});
+
+export const createSupportSession = wrap('createSupportSession', async (req, res) => {
+  if (!req.auth!.adminId) {
+    res.status(400).json({ error: 'ADMIN_SESSION_REQUIRED', message: 'Sign in to the admin dashboard to open a school' });
+    return;
+  }
+  if (!(await findSchoolById(String(req.params.id)))) return notFound(res);
+  res.status(201).json(await startSupportSession(req.auth!.adminId, String(req.params.id)));
 });

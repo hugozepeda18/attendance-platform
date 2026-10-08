@@ -130,7 +130,8 @@ It asks for the server URL (`https://api.<your domain>/api/v1`), the gate's SCAN
 * Try it on a Mac/Linux dev machine: `cd gate && cp gate.ini.example gate.ini` (set `server_url = http://localhost:4000/api/v1`, `api_key = ak_dev_north_scanner`, `fullscreen = no`), then `python3 gate.py` and type a badge such as `CARD-1A-01` + Enter. Self-check: `python3 gate/test_gate.py`. Needs Python with tkinter (python.org installer has it; Homebrew: `brew install python-tk`).
 
 ## 7. Super-Admin Operations (Platform Owner)
-Day to day, use the dashboard at `admin.<your domain>`: create schools (with their first principal), edit schedules, rename addresses, deactivate, issue/revoke device keys and manage users.
+Day to day, use the dashboard at `admin.<your domain>`: create schools (step-by-step form, ends with a welcome message to send the principal), edit schedules, rename addresses, deactivate, issue/revoke device keys and manage users.
+To fix something inside a school (a wrong record, a student, a staff account), open the school and click **Open as support**: its own page opens in a new tab with every principal power for 2 hours, under a yellow "Support mode" bar. Click **Exit** when done; your changes are recorded as platform support.
 
 Create your owner account (prints a random password once; re-running resets it and signs out old sessions):
 ```bash

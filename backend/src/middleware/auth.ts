@@ -42,7 +42,7 @@ export function requireRole(...roles: Role[]) {
 }
 
 export function requireSuperAdmin(req: Request, res: Response, next: NextFunction): void {
-  if (req.auth?.role === 'SUPERADMIN') return next();
+  if (req.auth?.role === 'SUPERADMIN' && !req.auth.support) return next();
   deny(res, 403, 'FORBIDDEN', 'This action requires the platform super-admin');
 }
 

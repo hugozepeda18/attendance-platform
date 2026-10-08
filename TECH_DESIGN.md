@@ -44,7 +44,7 @@
 * **School:** `id`, `slug` (unique; the school's subdomain, e.g. `sec-12` → `sec-12.<platform domain>`), `name`, `active` (deactivated schools are locked out), `createdAt`.
 * **User:** `id`, `schoolId`, `email` (unique per school, stored lowercase), `name`, `role` (`STAFF | PRINCIPAL`), `passwordHash` (Node `crypto.scrypt`, salted), `active`, `createdAt`. People sign in; devices use `ApiKey`.
 * **PlatformAdmin:** `id`, `email` (unique), `name`, `passwordHash`, `active`, `createdAt`. The platform owner's sign-in account (role `SUPERADMIN`), not tied to a school. Created with `npm run create-admin`.
-* **Session:** `id`, `userId` *or* `adminId` (DB CHECK: exactly one), `tokenHash` (sha256 of an opaque `st_` token), `createdAt`, `expiresAt` (12 h), `revokedAt`.
+* **Session:** `id`, `userId` *or* `adminId` (DB CHECK: exactly one), `tokenHash` (sha256 of an opaque `st_` token), `schoolId` (support sessions only: the owner inside one school, 2 h), `createdAt`, `expiresAt` (12 h), `revokedAt`.
 * **ApiKey:** `id`, `schoolId`, `role` (`SCANNER | STAFF | PRINCIPAL`), `label`, `keyHash` (sha256; plaintext shown once), `createdAt`, `revokedAt`, `lastSeenAt` (scanner health, written at most once a minute), `pendingScans` (from the gate heartbeat).
 * **ScanEvent:** `id`, `schoolId`, `eventId` (device-generated, unique per school), `credentialUid` (as read), `scannedAt` (after clock correction), `clockSkew`, `result` (JSON outcome returned to the gate), `createdAt`. Makes gate retries idempotent.
 * `SchoolConfig` (one per school, `schoolId` unique), `Student`, `Teacher`, `Subject` carry `schoolId`. `credentialUid` and teacher `email` are unique **per school**. `AttendanceRecord` is scoped through its student.
@@ -156,15 +156,18 @@
 * PRINCIPAL (or SUPERADMIN with `x-school-id`): `GET /api/v1/users`, `POST /api/v1/users` `{ email, name, role: STAFF|PRINCIPAL, password (10+) }`, `PATCH /api/v1/users/:id` `{ name?, role?, active?, password? }`. 409 `EMAIL_TAKEN`, 400 `SELF_LOCKOUT`.
 * Super-admin only (`Authorization: Bearer $SUPERADMIN_API_KEY`):
   * `POST /api/v1/admin/schools` `{ name, slug, schoolStartTime?, tardyGraceMinutes?, absenceCutoffMinutes?, timezone? }` → 201 `{ school, apiKeys: [{ role, key }] }` (keys shown once)
-  * `POST /api/v1/admin/schools` also accepts `principal: { email, name, password }`; school, config, keys and principal are created atomically.
+  * `POST /api/v1/admin/schools` also accepts `principalWhatsApp` and `principal: { email, name, password }`; school, config, keys and principal are created atomically.
   * `GET /api/v1/admin/schools` → `{ schools: [{ id, name, slug, active, timezone, studentCount }] }`
   * `GET /api/v1/admin/schools/:id` → `{ id, name, slug, active, config, studentCount, userCount, activeKeyCount }`
   * `PATCH /api/v1/admin/schools/:id` `{ active?, slug?, name?, schoolStartTime?, tardyGraceMinutes?, absenceCutoffMinutes?, timezone?, dropLeadingZeros?, principalWhatsApp? }` (409 `SLUG_TAKEN`)
+  * `GET /api/v1/admin/slug-available?slug=` → `{ available, reason? }`; `POST /api/v1/admin/schools/:id/support` → 201 `{ token, expiresAt }` (400 `ADMIN_SESSION_REQUIRED` with the env key; 403 from a support session).
   * `GET|POST /api/v1/admin/schools/:id/keys` (`POST` body `{ role, label }` → plaintext key once), `DELETE /api/v1/admin/schools/:id/keys/:keyId` (revoke)
 * Error codes: `401 UNAUTHENTICATED`, `403 FORBIDDEN | SCHOOL_INACTIVE`, `400 SCHOOL_REQUIRED` (super-admin without `x-school-id`).
 ## 6. Platform Admin Dashboard
 * Served by the same frontend at `admin.<platform domain>` (`admin` is a reserved slug). `main.tsx` renders `AdminApp` when the subdomain is `admin`.
-* Screens: schools list (search), new school (settings + first principal; shows the school link and device keys once), school detail (activate/deactivate, rename address, schedule settings, device keys issue/revoke, users via `/api/v1/users` with `x-school-id`).
+* Screens: schools list (search), new school (4-step wizard: School → Schedule → Principal → Review. The address is filled in from the name and checked while typing (`GET /admin/slug-available`); the schedule shows a live preview of on-time / late / absent times; the password can be generated; the done page shows a copyable Spanish welcome message for the principal (or opens it in WhatsApp) and the device keys once), school detail (activate/deactivate, rename address, schedule settings, device keys issue/revoke, users via `/api/v1/users` with `x-school-id`).
+
+* **Open as support:** on a school's detail page (and on the wizard's done page). Creates a 2-hour support session (`POST /admin/schools/:id/support`, needs a signed-in owner, not the env key) and opens `https://<slug>.<domain>/#support=<token>` in a new tab. The school page takes the token from the URL fragment (never sent to a server) and removes it from the address bar. The owner then has every principal power in that school; a yellow "Support mode" bar with **Exit** (revokes the session) is always shown, and changes are recorded as `SUPERADMIN`. A support session is locked to its school (`Session.schoolId`, `x-school-id` ignored) and has no `/admin` rights.
 
 ## 7. Gate Client (`gate/`)
 * `gate.py`: Python 3.8+ standard library only (`tkinter`, `sqlite3`, `urllib`, `winsound`), built into one `gate.exe` with PyInstaller (`build.ps1`, 32-bit Python 3.8 so it runs on Windows 7). `gate-setup.ps1` writes `gate.ini`, adds autostart, disables sleep, enables time sync and a Defender exclusion.

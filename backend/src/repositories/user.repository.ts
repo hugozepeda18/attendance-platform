@@ -29,7 +29,7 @@ export async function updateUser(
   return prisma.user.update({ where: { id }, data, select: publicUser });
 }
 
-export async function createSession(data: { userId?: string; adminId?: string; tokenHash: string; expiresAt: Date }) {
+export async function createSession(data: { userId?: string; adminId?: string; schoolId?: string; tokenHash: string; expiresAt: Date }) {
   return prisma.session.create({ data });
 }
 

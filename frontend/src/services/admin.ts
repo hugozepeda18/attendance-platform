@@ -1,4 +1,5 @@
 import api from './api';
+import { schoolUrl } from './school';
 import type { ApiKeyInfo, SchoolConfig, SchoolDetail, SchoolSummary } from '../types';
 
 export async function listSchools(): Promise<SchoolSummary[]> {
@@ -14,7 +15,28 @@ export async function getSchool(id: string): Promise<SchoolDetail> {
 export interface NewSchoolInput extends SchoolConfig {
   name: string;
   slug: string;
+  principalWhatsApp?: string;
   principal: { email: string; name: string; password: string };
+}
+
+export async function slugAvailable(slug: string): Promise<{ available: boolean; reason?: string }> {
+  const { data } = await api.get('/api/v1/admin/slug-available', { params: { slug } });
+  return data;
+}
+
+// A 2-hour session locked to one school, opened in a new tab at the school's own address.
+export async function openAsSupport(schoolId: string, slug: string): Promise<void> {
+  const tab = window.open('', '_blank'); // before the await, so the popup isn't blocked
+  try {
+    const { data } = await api.post<{ token: string }>(`/api/v1/admin/schools/${schoolId}/support`);
+    if (tab) {
+      tab.opener = null;
+      tab.location.href = `${schoolUrl(slug)}/#support=${data.token}`;
+    }
+  } catch (err) {
+    tab?.close();
+    throw err;
+  }
 }
 
 export async function createSchool(

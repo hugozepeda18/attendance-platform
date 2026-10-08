@@ -16,6 +16,7 @@ export interface AuthContext {
   adminId?: string; // set for signed-in platform admins
   apiKeyId?: string; // set for API keys (scanners, integrations)
   sessionId?: string;
+  support?: boolean; // platform admin inside one school (support session): no /admin rights
 }
 
 type ResolveResult =
@@ -49,6 +50,10 @@ export async function resolveBearerToken(
     if (!session || session.revokedAt || session.expiresAt <= new Date()) return invalid;
     if (session.admin) {
       if (!session.admin.active) return invalid;
+      if (session.schoolId) {
+        // x-school-id is ignored: a support session only ever reaches its own school.
+        return { ok: true, auth: { role: 'SUPERADMIN', schoolId: session.schoolId, adminId: session.admin.id, sessionId: session.id, support: true } };
+      }
       return superAdmin({ adminId: session.admin.id, sessionId: session.id });
     }
     const { user } = session;
@@ -131,6 +136,17 @@ export async function adminLogin(email: string, password: string) {
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
   await createSession({ adminId: admin.id, tokenHash: hashToken(token), expiresAt });
   return { token, expiresAt, admin: { id: admin.id, name: admin.name, email: admin.email } };
+}
+
+export const SUPPORT_TTL_MS = 2 * 60 * 60 * 1000;
+
+// The platform owner opens a school's own page with full principal powers ("Open as support").
+// A separate short session, so the school's page never holds the owner's platform-wide token.
+export async function startSupportSession(adminId: string, schoolId: string) {
+  const token = generateToken('st');
+  const expiresAt = new Date(Date.now() + SUPPORT_TTL_MS);
+  await createSession({ adminId, schoolId, tokenHash: hashToken(token), expiresAt });
+  return { token, expiresAt };
 }
 
 export async function logout(auth: AuthContext): Promise<void> {

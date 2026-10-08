@@ -86,6 +86,15 @@ export default function App() {
         pendingRequests={pendingRequests}
       />
 
+      {role === 'SUPERADMIN' && (
+        <div role="status" className="bg-amber-100 border-b border-amber-300 text-amber-900 text-sm">
+          <div className="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between gap-3">
+            <span><strong>Support mode</strong> · {me.user?.name ?? 'Platform admin'} · changes are recorded as platform support</span>
+            <button onClick={handleSignOut} className="font-medium underline shrink-0">Exit</button>
+          </div>
+        </div>
+      )}
+
       <main className="max-w-7xl mx-auto px-4 py-6 space-y-5">
         {activeTab === 'staff' ? (
           <StaffView currentUserId={me.user?.id ?? null} />

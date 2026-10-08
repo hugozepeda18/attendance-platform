@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { ArrowLeft, ExternalLink } from 'lucide-react';
+import { ArrowLeft, ExternalLink, LifeBuoy } from 'lucide-react';
 import type { ApiKeyInfo, SchoolDetail as Detail } from '../types';
-import { getSchool, issueKey, listKeys, revokeKey, updateSchool } from '../services/admin';
+import { getSchool, issueKey, listKeys, openAsSupport, revokeKey, updateSchool } from '../services/admin';
 import { schoolUrl } from '../services/school';
 import StaffView from '../pages/StaffView';
 import { apiMessage, Card, CopyValue, Field, inputClass, primaryButton, secondaryButton, TIMEZONES } from './ui';
@@ -111,10 +111,15 @@ export default function SchoolDetail({ id, onBack }: Props) {
             {school.studentCount} students · {school.userCount} users · {school.activeKeyCount} active device keys
           </p>
         </div>
+        <div className="flex flex-wrap gap-2">
+        <button onClick={() => openAsSupport(id, school.slug).catch((err) => setError(apiMessage(err, 'Could not open the school.')))} className={secondaryButton} title="Open the school's page with principal powers (2 hours)">
+          <span className="flex items-center gap-1.5"><LifeBuoy size={15} /> Open as support</span>
+        </button>
         <button onClick={toggleActive}
           className={school.active ? 'px-4 py-2 rounded-lg border border-red-200 text-red-700 text-sm font-medium hover:bg-red-50' : primaryButton}>
           {school.active ? 'Deactivate school' : 'Activate school'}
         </button>
+        </div>
       </div>
 
       {error && <p role="alert" className="text-sm text-red-600">{error}</p>}

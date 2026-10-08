@@ -119,7 +119,7 @@ function view(r: Row) {
     reason: r.reason,
     state: r.state,
     requestedBy: r.requestedBy.name,
-    decidedBy: r.decidedBy?.name ?? null,
+    decidedBy: r.decidedBy?.name ?? (r.decidedAt ? 'Platform support' : null),
     decidedAt: r.decidedAt?.toISOString() ?? null,
     createdAt: r.createdAt.toISOString(),
   };

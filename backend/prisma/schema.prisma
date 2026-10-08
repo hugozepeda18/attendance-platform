@@ -8,19 +8,20 @@ datasource db {
 }
 
 model School {
-  id             String          @id @default(uuid())
-  slug           String          @unique // subdomain: <slug>.<platform domain>
-  name           String
-  active         Boolean         @default(true)
-  createdAt      DateTime        @default(now())
-  config         SchoolConfig?
-  students       Student[]
-  teachers       Teacher[]
-  subjects       Subject[]
-  apiKeys        ApiKey[]
-  users          User[]
-  scanEvents     ScanEvent[]
-  changeRequests ChangeRequest[]
+  id              String          @id @default(uuid())
+  slug            String          @unique // subdomain: <slug>.<platform domain>
+  name            String
+  active          Boolean         @default(true)
+  createdAt       DateTime        @default(now())
+  config          SchoolConfig?
+  students        Student[]
+  teachers        Teacher[]
+  subjects        Subject[]
+  apiKeys         ApiKey[]
+  users           User[]
+  scanEvents      ScanEvent[]
+  changeRequests  ChangeRequest[]
+  supportSessions Session[]
 }
 
 // People who sign in to a school's web page. Devices (scanners) use ApiKey instead.
@@ -62,6 +63,8 @@ model Session {
   adminId   String?
   admin     PlatformAdmin? @relation(fields: [adminId], references: [id])
   tokenHash String         @unique
+  schoolId  String? // admin support session: locked to this one school, no platform admin rights
+  school    School?        @relation(fields: [schoolId], references: [id])
   createdAt DateTime       @default(now())
   expiresAt DateTime
   revokedAt DateTime?

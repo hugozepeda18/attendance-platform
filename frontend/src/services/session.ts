@@ -24,3 +24,12 @@ export function clearToken(): void {
     // ignore
   }
 }
+
+// "Open as support" from the admin dashboard arrives as <school>/#support=<token>. The fragment never
+// reaches a server; it is removed from the address bar (and history) right away.
+export function takeSupportToken(): void {
+  const match = /^#support=(st_[\w-]+)$/.exec(window.location.hash);
+  if (!match) return;
+  setToken(match[1]);
+  history.replaceState(null, '', window.location.pathname + window.location.search);
+}

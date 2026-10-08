@@ -162,6 +162,11 @@ Per `CLAUDE.md`, any task that adds UI or dependencies must first be added to `T
   - [ ] **Deferred to the first client:** the initial roster comes from the client's Excel files, migrated with Python scripts written together at that time (no in-app import for now).
   - Done when: the UI shows the school's real groups, and a deactivated student is never marked absent. ✔ (`roster.test.ts`, `change.test.ts`)
 
+- [x] **Phase 17b: Owner support mode + new-school wizard** *(S–M)* — done 2026-10-08 (requested while using the app)
+  - [x] **Open as support:** the platform owner opens any school's own page with principal powers (2-hour session locked to that school, yellow "Support mode" bar, Exit revokes it, changes recorded as SUPERADMIN). Chosen instead of a new per-school role.
+  - [x] **New-school wizard:** School → Schedule → Principal → Review; address from the name with a live "is it free" check; live schedule preview; password generator; principal's WhatsApp; done page with a copyable welcome message (or open in WhatsApp), device keys and "Open as support".
+  - Done when: `support.test.ts` passes (scope locked to the school, no admin rights, revocable) and a school can be created end to end from the wizard.
+
 - [ ] **Phase 18: School calendar** *(M)*
   - [ ] Absence run only on school days: skip weekends and every non-school day of the **SEP calendar for educación básica** (official holidays, vacations, Consejo Técnico Escolar days). Dates are loaded from the official SEP publication for the school year (cited in code), not typed from memory.
   - [ ] The platform admin loads the SEP calendar once per school year for all schools; each school can add its own days (suspensión, school anniversary).

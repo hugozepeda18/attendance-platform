@@ -28,6 +28,7 @@ export async function onboardSchool(input: {
   tardyGraceMinutes: number;
   absenceCutoffMinutes: number;
   timezone: string;
+  principalWhatsApp?: string;
   principal?: { email: string; name: string; password: string };
 }) {
   const keys = STARTER_ROLES.map((role) => ({ role, label: `initial ${role.toLowerCase()}`, plain: generateToken('ak') }));
