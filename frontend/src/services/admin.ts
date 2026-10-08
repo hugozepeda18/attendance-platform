@@ -2,9 +2,10 @@ import api from './api';
 import { schoolUrl } from './school';
 import type { ApiKeyInfo, SchoolConfig, SchoolDetail, SchoolSummary } from '../types';
 
-export async function listSchools(): Promise<SchoolSummary[]> {
-  const { data } = await api.get<{ schools: SchoolSummary[] }>('/api/v1/admin/schools');
-  return data.schools;
+// sepCalendarUntil: last day covered by the SEP calendars loaded in the backend (src/calendar/sep.ts).
+export async function listSchools(): Promise<{ schools: SchoolSummary[]; sepCalendarUntil: string }> {
+  const { data } = await api.get<{ schools: SchoolSummary[]; sepCalendarUntil: string }>('/api/v1/admin/schools');
+  return data;
 }
 
 export async function getSchool(id: string): Promise<SchoolDetail> {

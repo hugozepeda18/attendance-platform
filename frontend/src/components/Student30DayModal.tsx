@@ -18,6 +18,7 @@ interface CalendarDay {
   dateStr: string;
   dayLabel: string;
   entry: TimelineEntry | null;
+  dayOff: string | null; // no classes (weekend, SEP, the school's own day)
 }
 
 const STATUS_CELL: Record<AttendanceStatus, string> = {
@@ -27,8 +28,9 @@ const STATUS_CELL: Record<AttendanceStatus, string> = {
   EXCUSED: 'bg-purple-100 text-purple-800 border-purple-200',
 };
 
-function buildCalendar(timeline: TimelineEntry[]): CalendarDay[] {
+function buildCalendar(timeline: TimelineEntry[], daysOff: { date: string; label: string }[]): CalendarDay[] {
   const byDate = Object.fromEntries(timeline.map((e) => [e.date, e]));
+  const off = Object.fromEntries(daysOff.map((d) => [d.date, d.label]));
   const days: CalendarDay[] = [];
   const today = new Date();
 
@@ -40,6 +42,7 @@ function buildCalendar(timeline: TimelineEntry[]): CalendarDay[] {
       dateStr,
       dayLabel: d.getDate().toString(),
       entry: byDate[dateStr] ?? null,
+      dayOff: off[dateStr] ?? null,
     });
   }
   return days;
@@ -79,7 +82,7 @@ export default function Student30DayModal({ studentId, role, onClose, onChanged,
     );
   }
 
-  const calendar = data ? buildCalendar(data.timeline) : [];
+  const calendar = data ? buildCalendar(data.timeline, data.nonSchoolDays) : [];
 
   return (
     <>
@@ -192,11 +195,13 @@ export default function Student30DayModal({ studentId, role, onClose, onChanged,
                   {calendar.map((day) => (
                     <div
                       key={day.dateStr}
-                      title={`${day.dateStr}: ${day.entry?.status ?? 'No record'}`}
+                      title={`${day.dateStr}: ${day.entry?.status ?? day.dayOff ?? 'No record'}`}
                       className={`relative rounded-lg border p-1.5 text-center
                         ${day.entry
                           ? STATUS_CELL[day.entry.status]
-                          : 'bg-slate-50 text-slate-300 border-slate-200'
+                          : day.dayOff
+                            ? 'bg-slate-200 text-slate-400 border-slate-200'
+                            : 'bg-slate-50 text-slate-300 border-slate-200'
                         }
                         ${canChange ? 'cursor-pointer hover:opacity-75' : ''}
                       `}
@@ -225,6 +230,10 @@ export default function Student30DayModal({ studentId, role, onClose, onChanged,
                   <span className="flex items-center gap-1">
                     <span className="w-3 h-3 rounded bg-slate-50 border border-slate-200" />
                     No record
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-3 h-3 rounded bg-slate-200" />
+                    No classes
                   </span>
                 </div>
 

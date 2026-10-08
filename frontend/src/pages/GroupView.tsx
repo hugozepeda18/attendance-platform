@@ -55,6 +55,12 @@ export default function GroupView({ grade, group, role, onStudentSelect, refresh
         <p className="text-sm text-slate-400">Today's attendance summary</p>
       </div>
 
+      {data.today.nonSchoolDay && (
+        <p role="status" className="rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm text-slate-700">
+          No classes today: <strong>{data.today.nonSchoolDay}</strong>. Nobody is marked absent and no messages are sent.
+        </p>
+      )}
+
       {/* KPI cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <KPICard label="Total" value={data.today.total} color="slate" />
@@ -65,7 +71,7 @@ export default function GroupView({ grade, group, role, onStudentSelect, refresh
           label="No Record"
           value={noRecord > 0 ? noRecord : 0}
           color="slate"
-          sub="not yet evaluated"
+          sub={data.today.nonSchoolDay ? 'no classes today' : 'not yet evaluated'}
         />
       </div>
 

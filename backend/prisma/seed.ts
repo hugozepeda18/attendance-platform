@@ -3,6 +3,7 @@ import { PrismaClient, Role } from '@prisma/client';
 import { hashPassword, hashToken } from '../src/lib/tokens';
 import { getDateInTimezone } from '../src/services/attendance.service';
 import { utcOffsetMinutes } from '../src/services/gate.service';
+import { NOT_IN_SCHOOL_YEAR, sepNonSchoolDay } from '../src/calendar/sep';
 
 const prisma = new PrismaClient();
 
@@ -115,7 +116,6 @@ async function seedSchool(school: (typeof DEV_SCHOOLS)[number]) {
 }
 
 const SCHOOL_DAYS = 30;
-const HOLIDAYS = ['2026-09-16']; // ponytail: just the one in range; the real calendar is Phase 18
 
 // ~6 weeks of past school days so dashboards aren't empty. Today stays empty for live scans.
 // Every 7th student is a "problem" student (more tardies/absences) to give the charts something to show.
@@ -129,10 +129,12 @@ async function seedHistory(schoolId: string) {
 
   const days: Date[] = [];
   const day = getDateInTimezone(config.timezone);
+  // Past school days of the SEP calendar, back to the start of the school year at most.
   while (days.length < SCHOOL_DAYS) {
     day.setUTCDate(day.getUTCDate() - 1);
-    const dow = day.getUTCDay();
-    if (dow !== 0 && dow !== 6 && !HOLIDAYS.includes(day.toISOString().slice(0, 10))) days.push(new Date(day));
+    const reason = sepNonSchoolDay(day.toISOString().slice(0, 10));
+    if (reason === NOT_IN_SCHOOL_YEAR) break;
+    if (!reason) days.push(new Date(day));
   }
 
   const rows = days.flatMap((date) => {

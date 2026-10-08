@@ -7,6 +7,7 @@ import authRouter from './routes/auth';
 import usersRouter from './routes/users';
 import gateRouter from './routes/gate';
 import studentsRouter from './routes/students';
+import calendarRouter from './routes/calendar';
 import { scheduleAbsenceJob } from './jobs/absence.job';
 
 const app = express();
@@ -27,6 +28,7 @@ app.use('/api/v1', adminRouter);
 app.use('/api/v1', usersRouter);
 app.use('/api/v1', gateRouter);
 app.use('/api/v1', studentsRouter);
+app.use('/api/v1', calendarRouter);
 
 export default app;
 

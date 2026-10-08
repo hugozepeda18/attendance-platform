@@ -8,11 +8,11 @@ datasource db {
 }
 
 model School {
-  id              String          @id @default(uuid())
-  slug            String          @unique // subdomain: <slug>.<platform domain>
+  id              String              @id @default(uuid())
+  slug            String              @unique // subdomain: <slug>.<platform domain>
   name            String
-  active          Boolean         @default(true)
-  createdAt       DateTime        @default(now())
+  active          Boolean             @default(true)
+  createdAt       DateTime            @default(now())
   config          SchoolConfig?
   students        Student[]
   teachers        Teacher[]
@@ -22,6 +22,7 @@ model School {
   scanEvents      ScanEvent[]
   changeRequests  ChangeRequest[]
   supportSessions Session[]
+  calendarDays    SchoolCalendarDay[]
 }
 
 // People who sign in to a school's web page. Devices (scanners) use ApiKey instead.
@@ -149,6 +150,19 @@ model AttendanceRecord {
   note            String?
 
   @@unique([studentId, date])
+}
+
+// The school's own days without classes (suspensión, school anniversary), on top of the SEP calendar
+// (src/calendar/sep.ts). The absence run and excuses skip them.
+model SchoolCalendarDay {
+  id        String   @id @default(uuid())
+  schoolId  String
+  school    School   @relation(fields: [schoolId], references: [id])
+  date      DateTime @db.Date
+  label     String
+  createdAt DateTime @default(now())
+
+  @@unique([schoolId, date])
 }
 
 // Staff ask the principal to change a day's status (e.g. "llegó 9:10 con su mamá" → TARDY).

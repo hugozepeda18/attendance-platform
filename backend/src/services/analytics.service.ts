@@ -11,6 +11,7 @@ import {
   updateAttendanceRecord,
 } from '../repositories/attendance.repository';
 import { getDateInTimezone } from './attendance.service';
+import { nonSchoolDay, nonSchoolDaysBetween } from './calendar.service';
 
 export const OverrideSchema = z.object({
   status: z.enum(['PRESENT', 'TARDY', 'ABSENT', 'EXCUSED']),
@@ -41,12 +42,14 @@ export async function getGroupAnalytics(schoolId: string, grade: number, group: 
   const { today, thirtyDaysAgo } = dateRange(timezone);
   const studentIds = students.map((s) => s.id);
 
-  const [todayRecords, rangeRecords] = await Promise.all([
+  const [todayRecords, rangeRecords, dayOff] = await Promise.all([
     findRecordsByStudentIdsAndDate(studentIds, today),
     findRecordsByStudentIdsAndDateRange(studentIds, thirtyDaysAgo, today),
+    nonSchoolDay(schoolId, today),
   ]);
 
   const todaySummary = {
+    nonSchoolDay: dayOff, // e.g. "Consejo Técnico Escolar": no classes, so no "not yet evaluated" 
     total: students.length,
     present: todayRecords.filter((r) => r.status === 'PRESENT').length,
     tardy: todayRecords.filter((r) => r.status === 'TARDY').length,
@@ -95,9 +98,10 @@ export async function getStudentAnalytics(schoolId: string, studentId: string) {
   const { today, thirtyDaysAgo } = dateRange(timezone);
 
   const sixtyDaysAhead = new Date(today.getTime() + 60 * 24 * 60 * 60 * 1000);
-  const [records, upcoming] = await Promise.all([
+  const [records, upcoming, daysOff] = await Promise.all([
     findRecordsByStudentAndDateRange(student.id, thirtyDaysAgo, today),
     findRecordsByStudentAndDateRange(student.id, new Date(today.getTime() + 24 * 60 * 60 * 1000), sixtyDaysAhead),
+    nonSchoolDaysBetween(schoolId, thirtyDaysAgo, today),
   ]);
 
   const tardy30 = records.filter((r) => r.status === 'TARDY').length;
@@ -127,6 +131,7 @@ export async function getStudentAnalytics(schoolId: string, studentId: string) {
     },
     timeline,
     upcomingExcuses,
+    nonSchoolDays: [...daysOff].map(([date, label]) => ({ date, label })), // greyed out in the 30-day grid
     ...riskFlags(tardy30, absent30),
   };
 }

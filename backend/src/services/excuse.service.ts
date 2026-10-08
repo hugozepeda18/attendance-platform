@@ -4,6 +4,7 @@ import { evaluateStatus, getDateInTimezone } from './attendance.service';
 import { getSchoolConfig } from '../repositories/schoolConfig.repository';
 import { findStudentById } from '../repositories/student.repository';
 import { createExcusedRecords, findRecordsByStudentAndDateRange } from '../repositories/attendance.repository';
+import { nonSchoolDaysBetween } from './calendar.service';
 
 export class ExcuseRuleError extends Error {}
 
@@ -43,11 +44,12 @@ export async function excuseInAdvance(
     throw new ExcuseRuleError("Today's attendance window has closed; request a change from the principal");
   }
 
-  // ponytail: weekdays only; Phase 18 (school calendar) also skips SEP holidays.
+  // School days only: weekends, SEP days off and the school's own days are skipped.
+  const daysOff = await nonSchoolDaysBetween(schoolId, from, to);
   const days: Date[] = [];
   for (let t = from.getTime(); t <= to.getTime(); t += DAY_MS) {
     const d = new Date(t);
-    if (d.getUTCDay() !== 0 && d.getUTCDay() !== 6) days.push(d);
+    if (!daysOff.has(toYmd(d))) days.push(d);
   }
   if (days.length === 0) throw new ExcuseRuleError('There are no school days in that range');
 

@@ -67,6 +67,7 @@
   * `guardianName`: String
   * `guardianWhatsApp`: String (E.164 format, e.g., `"+523312345678"`)
   * `active`: Boolean (default `true`; withdrawn students are not scanned, not marked absent, not on the gate roster or in lists, and keep their badge until given another one)
+* **SchoolCalendarDay:** `id`, `schoolId`, `date` (unique per school), `label`, `createdAt`. A school's own day without classes.
 * **ChangeRequest:** `id`, `schoolId`, `studentId`, `date`, `fromStatus` (null = no record yet), `toStatus`, `reason`, `requestedById` (staff user), `state` (`PENDING | APPROVED | REJECTED`), `decidedById`, `decidedAt`, `createdAt`.
 * **AttendanceRecord:**
   * `id`: UUID (PK)
@@ -110,6 +111,11 @@
   * The absence run skips excused students automatically (they have a record), so the guardian gets no absence notice.
 * **Role-Based Overrides:**
   * Only an authenticated `PRINCIPAL` (or `SUPERADMIN`) can manually alter an attendance record (e.g., changing `ABSENT` to `EXCUSED` or `PRESENT`). Staff cannot override.
+* **School calendar (Phase 18):**
+  * A day has classes unless it is a weekend, a day off in the SEP calendar (`backend/src/calendar/sep.ts`: one entry per school year with first/last day of classes and every weekday off: suspensiones de labores, Consejo Técnico Escolar, registro de calificaciones, vacations; transcribed from the DOF Acuerdo, cited in the file, and checked by a test against the official number of days), a day outside every loaded school year, or one of the school's own days (`SchoolCalendarDay`).
+  * On a day without classes the absence run marks nobody and sends nothing; excuses in advance skip those days. Scans are still accepted (special events).
+  * The owner adds the next SEP school year to `sep.ts` each July; the admin schools list warns 45 days before the loaded calendar ends.
+  * Principals add/remove their school's own days from today on (Calendar tab); a day already off is rejected with its reason.
 * **Change requests (staff → principal):**
   * STAFF ask to change a student's status for a day (any of the last 30 days, not the future; a day without a record counts, e.g. "Register late arrival" → TARDY). Reason required; one pending request per student and day.
   * Nothing changes until the principal approves; approving writes the requested status (note = reason, author = principal) and creates the record if the day has none (the absence run then skips the student). Rejecting leaves it untouched. A principal's own change applies at once, no request.
@@ -152,6 +158,9 @@
 * `POST /api/v1/attendance/changes/:id/approve` | `/reject` (PRINCIPAL) → `{ id, state }`; 409 `ALREADY_DECIDED`, 404 another school's.
 * `GET /api/v1/students/groups` (STAFF/PRINCIPAL) → `{ groups: [{ grade, group, students }] }` (active students).
 * PRINCIPAL: `GET /api/v1/students?grade&group` (withdrawn included), `POST /api/v1/students` `{ firstName, lastName, grade, group, credentialUid, guardianName, guardianWhatsApp }`, `PATCH /api/v1/students/:id` (same fields + `active`, all optional). 409 `BADGE_TAKEN`.
+* `GET /api/v1/calendar` (STAFF/PRINCIPAL) → `{ schoolYear, start, end, days: [{ date, label, source: SEP|SCHOOL, id? }] }` (weekdays off from today to the end of the school year).
+* `POST /api/v1/calendar/days` (PRINCIPAL) `{ date, label }` → 201; 400 `CALENDAR_RULE` (past day, already off). `DELETE /api/v1/calendar/days/:id` (PRINCIPAL) → 204; 404 another school's.
+* Group analytics `today` includes `nonSchoolDay` (reason or null); student analytics include `nonSchoolDays: [{ date, label }]` for the 30-day window. `GET /admin/schools` includes `sepCalendarUntil`.
 * `GET /api/v1/me` → `{ role, school: { id, name, slug } | null, user: { id, name, email } | null }`
 * PRINCIPAL (or SUPERADMIN with `x-school-id`): `GET /api/v1/users`, `POST /api/v1/users` `{ email, name, role: STAFF|PRINCIPAL, password (10+) }`, `PATCH /api/v1/users/:id` `{ name?, role?, active?, password? }`. 409 `EMAIL_TAKEN`, 400 `SELF_LOCKOUT`.
 * Super-admin only (`Authorization: Bearer $SUPERADMIN_API_KEY`):

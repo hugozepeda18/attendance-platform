@@ -1,4 +1,4 @@
-import { GraduationCap, Users, Shield, User, LogOut, UserCog, Inbox, Contact } from 'lucide-react';
+import { GraduationCap, Users, Shield, User, LogOut, UserCog, Inbox, Contact, CalendarDays } from 'lucide-react';
 import type { UserRole, ViewTab } from '../types';
 
 interface Props {
@@ -17,6 +17,7 @@ const tabs: { id: ViewTab; label: string; Icon: typeof Users; roles: UserRole[] 
   { id: 'grade', label: 'By Grade', Icon: GraduationCap, roles: people },
   { id: 'group', label: 'By Group', Icon: Users, roles: people },
   { id: 'requests', label: 'Requests', Icon: Inbox, roles: people },
+  { id: 'calendar', label: 'Calendar', Icon: CalendarDays, roles: people },
   { id: 'students', label: 'Students', Icon: Contact, roles: principal },
   { id: 'staff', label: 'Staff', Icon: UserCog, roles: principal },
 ];

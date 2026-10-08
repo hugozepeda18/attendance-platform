@@ -1,5 +1,6 @@
 import { AttendanceStatus, Prisma, SchoolConfig, Student, UpdatedByRole } from '@prisma/client';
 import { NotifierService, notifier } from './notifier';
+import { nonSchoolDay } from './calendar.service';
 import { getSchoolConfig } from '../repositories/schoolConfig.repository';
 import { findStudentByCredentialUid, findStudentsWithoutRecordForDate } from '../repositories/student.repository';
 import {
@@ -194,6 +195,12 @@ export async function evaluateAbsences(
   if (!config) throw new Error('School configuration not found');
 
   const today = getDateInTimezone(config.timezone);
+  // No classes (SEP holiday, CTE, vacation, the school's own day): nobody is absent, nobody is messaged.
+  const dayOff = await nonSchoolDay(schoolId, today);
+  if (dayOff) {
+    console.log(`[AbsenceJob] ${schoolId}: no classes today (${dayOff}), skipped`);
+    return 0;
+  }
   const absentStudents = await findStudentsWithoutRecordForDate(schoolId, today);
 
   for (const student of absentStudents) {

@@ -11,11 +11,19 @@ interface Props {
 
 export default function SchoolsList({ onOpen, onNew }: Props) {
   const [schools, setSchools] = useState<SchoolSummary[] | null>(null);
+  const [calendarUntil, setCalendarUntil] = useState<string | null>(null);
+  // The absence run stops outside a loaded SEP school year: remind the owner to add the next one.
+  const calendarEndsSoon = calendarUntil !== null && Date.parse(calendarUntil) - Date.now() < 45 * 24 * 60 * 60 * 1000;
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
 
   useEffect(() => {
-    listSchools().then(setSchools).catch(() => setError('Failed to load schools.'));
+    listSchools()
+      .then((r) => {
+        setSchools(r.schools);
+        setCalendarUntil(r.sepCalendarUntil);
+      })
+      .catch(() => setError('Failed to load schools.'));
   }, []);
 
   const q = query.trim().toLowerCase();
@@ -23,6 +31,12 @@ export default function SchoolsList({ onOpen, onNew }: Props) {
 
   return (
     <div className="space-y-4">
+      {calendarEndsSoon && (
+        <p role="alert" className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          The SEP school calendar loaded in the system ends on <strong>{calendarUntil}</strong>. Add the next school year from the DOF
+          (<code>backend/src/calendar/sep.ts</code>), or absences will stop being marked after that date.
+        </p>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-bold text-slate-800">Schools {schools && <span className="text-slate-400 font-normal">({schools.length})</span>}</h1>
         <div className="flex gap-2 w-full sm:w-auto">

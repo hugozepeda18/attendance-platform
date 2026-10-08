@@ -9,6 +9,7 @@ import SignIn from './pages/SignIn';
 import StaffView from './pages/StaffView';
 import StudentsView from './pages/StudentsView';
 import RequestsView from './pages/RequestsView';
+import CalendarView from './pages/CalendarView';
 import { listGroups } from './services/students';
 import { listChangeRequests } from './services/attendance';
 import { getMe, logout } from './services/auth';
@@ -100,6 +101,8 @@ export default function App() {
           <StaffView currentUserId={me.user?.id ?? null} />
         ) : activeTab === 'students' ? (
           <StudentsView onChanged={() => setRefreshKey((k) => k + 1)} />
+        ) : activeTab === 'calendar' ? (
+          <CalendarView role={role} />
         ) : activeTab === 'requests' ? (
           <RequestsView role={role} onDecided={() => setRefreshKey((k) => k + 1)} />
         ) : (

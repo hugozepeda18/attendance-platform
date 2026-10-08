@@ -21,6 +21,7 @@ export const OWNER_EMAIL = 'owner@platform.test';
 export async function cleanupCreatedSchools(prisma: import('@prisma/client').PrismaClient) {
   const where = { schoolId: { notIn: [NORTH, SOUTH] } };
   await prisma.changeRequest.deleteMany({ where });
+  await prisma.schoolCalendarDay.deleteMany({ where });
   await prisma.session.deleteMany({ where: { user: where } });
   await prisma.session.deleteMany({ where });
   await prisma.user.deleteMany({ where });

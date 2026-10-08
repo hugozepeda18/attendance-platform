@@ -167,12 +167,12 @@ Per `CLAUDE.md`, any task that adds UI or dependencies must first be added to `T
   - [x] **New-school wizard:** School → Schedule → Principal → Review; address from the name with a live "is it free" check; live schedule preview; password generator; principal's WhatsApp; done page with a copyable welcome message (or open in WhatsApp), device keys and "Open as support".
   - Done when: `support.test.ts` passes (scope locked to the school, no admin rights, revocable) and a school can be created end to end from the wizard.
 
-- [ ] **Phase 18: School calendar** *(M)*
-  - [ ] Absence run only on school days: skip weekends and every non-school day of the **SEP calendar for educación básica** (official holidays, vacations, Consejo Técnico Escolar days). Dates are loaded from the official SEP publication for the school year (cited in code), not typed from memory.
-  - [ ] The platform admin loads the SEP calendar once per school year for all schools; each school can add its own days (suspensión, school anniversary).
-  - [ ] Absence job skips non-school days. Today the job would send absence alerts to **every parent** on a holiday.
-  - [ ] Analytics ignore non-school days.
-  - Done when: a test shows a holiday → no ABSENT records and no messages.
+- [x] **Phase 18: School calendar** *(M)* — done 2026-10-08
+  - [x] Absence run only on school days: weekends and every non-school day of the **SEP calendar for educación básica** are skipped (suspensiones, vacations, Consejo Técnico Escolar, registro de calificaciones, days outside the school year). 2026-2027 transcribed from **Acuerdo 07/07/26, DOF 15/07/2026** (cited in `backend/src/calendar/sep.ts`); a test recounts the official 185 days.
+  - [x] SEP calendar lives in code (`sep.ts`), one entry per school year: the owner adds the next year each July from the DOF; the admin dashboard warns 45 days before the loaded calendar ends. Each school adds its own days (Calendar tab, principal; staff read it).
+  - [x] Absence job and excuses skip non-school days (no ABSENT records, no messages).
+  - [x] Analytics: the group view says "No classes today: <reason>"; the student's 30-day grid greys out days without classes; the 30-day rate already counts only days with records. Dev seed history follows the calendar.
+  - Done when: a test shows a holiday → no ABSENT records and no messages. ✔ (`calendar.test.ts`, `unit/calendar.test.ts`)
 
 - [ ] **Phase 19: Spanish UI** *(M)*
   - [ ] All UI text in Spanish (es-MX), dates in local format. Keep the strings in one file.

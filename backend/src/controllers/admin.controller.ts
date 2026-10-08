@@ -12,6 +12,7 @@ import {
 } from '../services/school.service';
 import { emailSchema, passwordSchema, slugSchema, whatsappSchema } from '../lib/validation';
 import { startSupportSession } from '../services/auth.service';
+import { sepCalendarUntil } from '../calendar/sep';
 import { findSchoolById, findSchoolBySlug } from '../repositories/school.repository';
 
 const isTimezone = (tz: string) => {
@@ -92,7 +93,8 @@ export const createSchool = wrap('createSchool', async (req, res) => {
 });
 
 export const listSchools = wrap('listSchools', async (_req, res) => {
-  res.json({ schools: await getSchools() });
+  // sepCalendarUntil: the dashboard warns when the next SEP school year must be added (src/calendar/sep.ts).
+  res.json({ schools: await getSchools(), sepCalendarUntil: sepCalendarUntil() });
 });
 
 export const patchSchool = wrap('patchSchool', async (req, res) => {

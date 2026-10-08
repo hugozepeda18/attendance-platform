@@ -52,7 +52,7 @@ Open **http://norte.localhost:5173** (a school's own address, not plain `localho
 
 ### Dev data
 The seed creates two schools (Norte, Sur), each with grades 1–3, groups A–B, 5 students per group (30 per school), badges `CARD-<grade><group>-<nn>` (e.g. `CARD-1A-01`) and a guardian WhatsApp number per student; a principal and a staff user per school; the platform owner; and the dev device keys (table in §5).
-It also creates the **last 30 school days of attendance** (weekdays, skipping 16 Sep): mostly PRESENT, some TARDY, a few ABSENT and EXCUSED, with every 7th student ("problem" student) tardy or absent more often. **Today stays empty** so you can scan live (curl in §5, or the gate program in §6); after the school's cutoff (08:30 by default) the absence job marks everyone not scanned as ABSENT.
+It also creates the **last 30 school days of attendance** (by the SEP calendar, so from 31 Aug, the start of the 2026-2027 school year, skipping 16 Sep and the 25 Sep Consejo Técnico): mostly PRESENT, some TARDY, a few ABSENT and EXCUSED, with every 7th student ("problem" student) tardy or absent more often. **Today stays empty** so you can scan live (curl in §5, or the gate program in §6); after the school's cutoff (08:30 by default) the absence job marks everyone not scanned as ABSENT.
 Until Phase 15, WhatsApp messages are only printed in the backend terminal.
 
 ## 4. Verification & Testing Suite (Agent Execution Loop)
@@ -169,4 +169,6 @@ curl "http://localhost:4000/api/v1/attendance/search?query=1-A" -H "$ADMIN" -H "
 # Direct database access (owner only)
 cd backend && npx prisma studio
 ```
+**Every July: load the next SEP calendar.** SEP publishes the next school year's calendar in the DOF (an "ACUERDO … por el que se establecen los calendarios escolares para el ciclo lectivo …"). Add it to `backend/src/calendar/sep.ts` (first and last day of classes, every weekday off, the official number of days and the DOF link), run `npm test` (it recounts the official days) and deploy. The admin schools list shows a warning 45 days before the loaded calendar ends; outside a loaded school year nobody is marked absent.
+
 **Production:** point a wildcard DNS record (`*.<your domain>`) and a wildcard TLS certificate at the frontend; set `SUPERADMIN_API_KEY` to a long random value (`openssl rand -base64 32`), never run the seed (it refuses when `NODE_ENV=production`), and change the default Postgres credentials in `docker-compose.yml`.

@@ -53,7 +53,7 @@ export interface SchoolUser {
   active: boolean;
   createdAt: string;
 }
-export type ViewTab = 'grade' | 'group' | 'staff' | 'students' | 'requests';
+export type ViewTab = 'grade' | 'group' | 'staff' | 'students' | 'requests' | 'calendar';
 export type PersonRole = 'STAFF' | 'PRINCIPAL';
 
 export interface AttendanceOverview {
@@ -89,6 +89,7 @@ export interface GroupAnalytics {
   grade: number;
   group: string;
   today: {
+    nonSchoolDay: string | null; // no classes today and why
     total: number;
     present: number;
     tardy: number;
@@ -121,6 +122,7 @@ export interface StudentAnalytics {
   };
   timeline: TimelineEntry[];
   upcomingExcuses: TimelineEntry[];
+  nonSchoolDays: { date: string; label: string }[];
   isHabituallyTardy: boolean;
   isChronicAbsentee: boolean;
 }
@@ -157,4 +159,18 @@ export interface ChangeRequest {
   decidedBy: string | null;
   decidedAt: string | null;
   createdAt: string;
+}
+
+export interface CalendarDay {
+  date: string;
+  label: string;
+  source: 'SEP' | 'SCHOOL';
+  id?: string; // school days only (deletable)
+}
+
+export interface SchoolCalendar {
+  schoolYear: string | null;
+  start: string | null;
+  end: string | null;
+  days: CalendarDay[];
 }
