@@ -1,5 +1,5 @@
 import { AttendanceStatus, Prisma, SchoolConfig, Student, UpdatedByRole } from '@prisma/client';
-import { NotifierService, notifier } from './notifier';
+import { absenceMessage, entryMessage, ENTRY_MAX_AGE_MS } from './outbox.service';
 import { nonSchoolDay } from './calendar.service';
 import { getSchoolConfig } from '../repositories/schoolConfig.repository';
 import { findStudentByCredentialUid, findStudentsWithoutRecordForDate } from '../repositories/student.repository';
@@ -66,7 +66,6 @@ export interface ScanOutcome {
 
 const MAX_FUTURE_MS = 2 * 60_000;
 const MAX_PAST_MS = 24 * 60 * 60_000;
-const ENTRY_MESSAGE_MAX_AGE_MS = 2 * 60 * 60_000;
 
 // Device time → server time. The whole upload is shifted by (server now − device sentAt);
 // anything still outside [now − 24 h, now + 2 min] falls back to server time and is flagged.
@@ -88,7 +87,6 @@ export function normalizeCredential(raw: string, dropLeadingZeros: boolean): str
 export async function processScan(
   schoolId: string,
   input: ScanInput,
-  notifierService: NotifierService = notifier,
 ): Promise<ScanOutcome> {
   if (input.eventId) {
     const seen = await findScanEvent(schoolId, input.eventId);
@@ -114,7 +112,7 @@ export async function processScan(
     clockSkew,
   };
 
-  if (student) outcome.result = await recordArrival(student, at, config, notifierService);
+  if (student) outcome.result = await recordArrival(student, at, config);
 
   if (!input.eventId) return outcome;
   try {
@@ -131,7 +129,6 @@ async function recordArrival(
   student: Student,
   at: Date,
   config: SchoolConfig,
-  notifierService: NotifierService,
 ): Promise<ScanResultCode> {
   // The record belongs to the day of the scan, not the day of the upload.
   const day = getDateInTimezone(config.timezone, at);
@@ -144,6 +141,11 @@ async function recordArrival(
   const status = evaluateStatus(at, config.schoolStartTime, config.tardyGraceMinutes, config.absenceCutoffMinutes, config.timezone);
   if (status === 'OUTSIDE_WINDOW') return status;
 
+  // No correction messages: if the guardian already got the absence notice, stay silent.
+  // Stale entries (an old offline queue) are not announced either. The message is written with the record.
+  const absenceNoticeSent = existing?.status === AttendanceStatus.ABSENT && existing.updatedByRole === UpdatedByRole.SYSTEM;
+  const message = absenceNoticeSent || Date.now() - at.getTime() > ENTRY_MAX_AGE_MS ? null : entryMessage(student, status, at, config.timezone);
+
   if (existing) {
     // Excused / marked absent, but a real arrival inside the window wins (a queued gate scan
     // can arrive after the absence run). Any excuse note is kept for the principal.
@@ -152,33 +154,23 @@ async function recordArrival(
       scanTimestamp: at,
       updatedByRole: UpdatedByRole.SCANNER,
       updatedByUserId: null,
+      // connectOrCreate: a day that already had an entry message (changed by the principal since) gets no second one
+      ...(message && { notifications: { connectOrCreate: { where: { recordId_type: { recordId: existing.id, type: message.type } }, create: message } } }),
     });
   } else {
     try {
-      await createAttendanceRecord({ studentId: student.id, date: day, scanTimestamp: at, status, updatedByRole: UpdatedByRole.SCANNER });
+      await createAttendanceRecord({
+        studentId: student.id,
+        date: day,
+        scanTimestamp: at,
+        status,
+        updatedByRole: UpdatedByRole.SCANNER,
+        ...(message && { notifications: { create: message } }),
+      });
     } catch (err) {
       if (isUniqueViolation(err)) return 'ALREADY_SCANNED'; // two gates, same student, same instant
       throw err;
     }
-  }
-
-  // No correction messages: if the guardian already got the absence notice, stay silent.
-  // Stale entries (an old offline queue) are not announced either.
-  const absenceNoticeSent = existing?.status === AttendanceStatus.ABSENT && existing.updatedByRole === UpdatedByRole.SYSTEM;
-  if (absenceNoticeSent || Date.now() - at.getTime() > ENTRY_MESSAGE_MAX_AGE_MS) return status;
-
-  // Attendance is already saved: a notification failure must not fail the gate.
-  // ponytail: failed messages are only logged; Phase 15 moves sending to an outbox with retries.
-  try {
-    await notifierService.sendScanAlert({
-      guardianWhatsApp: student.guardianWhatsApp,
-      guardianName: student.guardianName,
-      studentName: `${student.firstName} ${student.lastName}`,
-      status,
-      timestamp: at,
-    });
-  } catch (err) {
-    console.error(`[processScan] notification failed for student ${student.id}:`, err);
   }
   return status;
 }
@@ -189,7 +181,6 @@ function isUniqueViolation(err: unknown): boolean {
 
 export async function evaluateAbsences(
   schoolId: string,
-  notifierService: NotifierService = notifier,
 ): Promise<number> {
   const config = await getSchoolConfig(schoolId);
   if (!config) throw new Error('School configuration not found');
@@ -209,13 +200,7 @@ export async function evaluateAbsences(
       date: today,
       status: AttendanceStatus.ABSENT,
       updatedByRole: UpdatedByRole.SYSTEM,
-    });
-
-    await notifierService.sendAbsenceAlert({
-      guardianWhatsApp: student.guardianWhatsApp,
-      guardianName: student.guardianName,
-      studentName: `${student.firstName} ${student.lastName}`,
-      date: today,
+      notifications: { create: absenceMessage(student, today) },
     });
   }
 

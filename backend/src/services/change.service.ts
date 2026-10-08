@@ -4,6 +4,7 @@ import { getDateInTimezone } from './attendance.service';
 import { getSchoolConfig } from '../repositories/schoolConfig.repository';
 import { findStudentById } from '../repositories/student.repository';
 import prisma from '../lib/prisma';
+import { alertPrincipal, changeRequestDay } from './outbox.service';
 import {
   countPendingRequests,
   createChangeRequest,
@@ -82,8 +83,11 @@ export async function requestChange(auth: AuthContext, input: ChangeInput) {
     reason: input.reason,
     requestedById: auth.userId!,
   });
-  // ponytail: the principal sees it in the Requests tab (badge with the count); the WhatsApp alert to
-  // SchoolConfig.principalWhatsApp comes with Phase 15.
+  // The principal sees it in the Requests tab (badge with the count) and gets a WhatsApp alert.
+  await alertPrincipal(schoolId, 'solicitud_cambio', [
+    request.requestedBy.name,
+    `${student.firstName} ${student.lastName} (${changeRequestDay(date)})`,
+  ]);
   return { applied: false as const, request: view(request) };
 }
 

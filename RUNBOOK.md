@@ -6,7 +6,7 @@
 * npm v10 or higher
 * Chrome or Firefox (they resolve `*.localhost` on their own; for other browsers add `127.0.0.1 norte.localhost sur.localhost admin.localhost` to `/etc/hosts`)
 
-Backend and frontend each keep a terminal busy, so use two.
+Backend, the message worker and the frontend each keep a terminal busy, so use three.
 
 ## 1. Local Infrastructure Setup
 ```bash
@@ -37,6 +37,13 @@ npm run seed
 npm run dev
 ```
 
+### Message worker (terminal 3)
+```bash
+cd backend
+npm run worker   # sends the WhatsApp outbox; without WHATSAPP_* variables it prints each message here
+```
+If it is not running, messages wait in the outbox (nothing is lost) and go out when it starts.
+
 ## 3. Frontend Initialization (terminal 2)
 ```bash
 cd frontend
@@ -53,7 +60,7 @@ Open **http://norte.localhost:5173** (a school's own address, not plain `localho
 ### Dev data
 The seed creates two schools (Norte, Sur), each with grades 1–3, groups A–B, 5 students per group (30 per school), badges `CARD-<grade><group>-<nn>` (e.g. `CARD-1A-01`) and a guardian WhatsApp number per student; a principal and a staff user per school; the platform owner; and the dev device keys (table in §5).
 It also creates the **last 30 school days of attendance** (by the SEP calendar, so from 31 Aug, the start of the 2026-2027 school year, skipping 16 Sep and the 25 Sep Consejo Técnico): mostly PRESENT, some TARDY, a few ABSENT and EXCUSED, with every 7th student ("problem" student) tardy or absent more often. **Today stays empty** so you can scan live (curl in §5, or the gate program in §6); after the school's cutoff (08:30 by default) the absence job marks everyone not scanned as ABSENT.
-Until Phase 15, WhatsApp messages are only printed in the backend terminal.
+WhatsApp messages are printed by the worker (terminal 3), about 2 min after the scan (entry messages wait so siblings go together).
 
 ## 4. Verification & Testing Suite (Agent Execution Loop)
 ```bash
@@ -172,3 +179,14 @@ cd backend && npx prisma studio
 **Every July: load the next SEP calendar.** SEP publishes the next school year's calendar in the DOF (an "ACUERDO … por el que se establecen los calendarios escolares para el ciclo lectivo …"). Add it to `backend/src/calendar/sep.ts` (first and last day of classes, every weekday off, the official number of days and the DOF link), run `npm test` (it recounts the official days) and deploy. The admin schools list shows a warning 45 days before the loaded calendar ends; outside a loaded school year nobody is marked absent.
 
 **Production:** point a wildcard DNS record (`*.<your domain>`) and a wildcard TLS certificate at the frontend; set `SUPERADMIN_API_KEY` to a long random value (`openssl rand -base64 32`), never run the seed (it refuses when `NODE_ENV=production`), and change the default Postgres credentials in `docker-compose.yml`.
+
+## 8. WhatsApp (Meta Cloud API), once for the platform
+1. Create a Meta Business account (business.facebook.com) and verify the business (RFC / acta, takes days).
+2. developers.facebook.com → Create app → Business → add **WhatsApp**. Register the platform's phone number (one number for every school; it must not be in use on the WhatsApp app).
+3. WhatsApp Manager → Message templates: create the five templates in `backend/src/services/templates.ts`, category **Utility**, language **Spanish (MEX)**, same names and text (`{{1}}` = school name). Wait for "Active".
+4. Business settings → System users → create one with a **permanent token** (permission `whatsapp_business_messaging`).
+5. Set on the server: `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_APP_SECRET` (App settings → Basic) and `WHATSAPP_VERIFY_TOKEN` (any random string). Run the worker as its own service (`npm run build`, then `npm run start:worker`), next to the API.
+6. App → WhatsApp → Configuration → Webhook: URL `https://api.<your domain>/api/v1/webhooks/whatsapp`, the same verify token; subscribe to **messages** (delivery statuses come with it).
+7. Check: scan a test badge; the worker log shows the send, and the student's records list goes sent → delivered → read.
+
+Failed messages: `npx prisma studio` → `Notification`, `status = FAILED`, `lastError` says why (often a guardian number that is not on WhatsApp: fix it in the Students tab).

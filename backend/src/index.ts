@@ -8,11 +8,13 @@ import usersRouter from './routes/users';
 import gateRouter from './routes/gate';
 import studentsRouter from './routes/students';
 import calendarRouter from './routes/calendar';
+import webhooksRouter from './routes/webhooks';
 import { scheduleAbsenceJob } from './jobs/absence.job';
 
 const app = express();
 
-app.use(express.json());
+// rawBody: the WhatsApp webhook signature is computed over the exact bytes
+app.use(express.json({ verify: (req, _res, buf) => void ((req as express.Request & { rawBody?: Buffer }).rawBody = buf) }));
 // ponytail: one line per request to stdout (never headers/body, so no tokens or student data); a log library when we ship to a host that needs JSON logs
 if (process.env.NODE_ENV !== 'test') {
   app.use((req, res, next) => {
@@ -29,6 +31,7 @@ app.use('/api/v1', usersRouter);
 app.use('/api/v1', gateRouter);
 app.use('/api/v1', studentsRouter);
 app.use('/api/v1', calendarRouter);
+app.use('/api/v1', webhooksRouter);
 
 export default app;
 

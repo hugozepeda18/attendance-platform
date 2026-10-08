@@ -18,7 +18,6 @@ const newStudent = {
   guardianName: 'Tutor Nuevo',
   guardianWhatsApp: '+523312345600',
 };
-const silent = { sendScanAlert: async () => {}, sendAbsenceAlert: async () => {} };
 
 async function cleanup() {
   await prisma.attendanceRecord.deleteMany({});
@@ -83,7 +82,7 @@ describe('Student roster (Phase 17)', () => {
     expect(group.body.today.total).toBe(4);
 
     setMexicoCityTime('08:30');
-    expect(await evaluateAbsences(NORTH, silent)).toBe(29);
+    expect(await evaluateAbsences(NORTH)).toBe(29);
     expect(await prisma.attendanceRecord.count({ where: { studentId: student.id } })).toBe(0);
 
     // still listed for the principal, so they can bring the student back

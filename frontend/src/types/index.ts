@@ -107,7 +107,10 @@ export interface TimelineEntry {
   scanTimestamp: string | null;
   note: string | null;
   updatedByName: string | null;
+  messages?: { type: 'ENTRY' | 'ABSENCE'; status: MessageStatus }[]; // WhatsApp to the guardian
 }
+
+export type MessageStatus = 'PENDING' | 'SENDING' | 'SENT' | 'DELIVERED' | 'READ' | 'FAILED' | 'EXPIRED';
 
 export interface StudentAnalytics {
   student: {

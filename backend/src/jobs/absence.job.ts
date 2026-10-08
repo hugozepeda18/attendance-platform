@@ -3,6 +3,7 @@ import { SchoolConfig } from '@prisma/client';
 import { evaluateAbsences, getDateInTimezone } from '../services/attendance.service';
 import { findRecentScannerKeys, listActiveSchoolConfigs } from '../repositories/school.repository';
 import { markAbsenceRun } from '../repositories/schoolConfig.repository';
+import { alertPrincipal } from '../services/outbox.service';
 
 type CutoffConfig = Pick<SchoolConfig, 'schoolStartTime' | 'absenceCutoffMinutes' | 'timezone'>;
 
@@ -57,8 +58,10 @@ export async function runAbsenceTick(
       if (late < MAX_GATE_WAIT_MINUTES) {
         const waiting = await gatesNotReady(config.schoolId, now);
         if (waiting.length) {
-          // ponytail: logged only; the principal alert ("Escáner sin conexión, inasistencias en espera") comes with Phase 15/17.
-          if (late === 0) console.warn(`[AbsenceJob] ${config.schoolId}: waiting for gates ${waiting.join(', ')}`);
+          if (late === 0) {
+            console.warn(`[AbsenceJob] ${config.schoolId}: waiting for gates ${waiting.join(', ')}`);
+            await alertPrincipal(config.schoolId, 'escaner_en_espera', [waiting.join(', ')]);
+          }
           continue;
         }
       }

@@ -2,7 +2,7 @@ import request from 'supertest';
 import app from '../../src/index';
 import prisma from '../../src/lib/prisma';
 import { evaluateAbsences } from '../../src/services/attendance.service';
-import { auth, KEYS, NORTH, setMexicoCityTime, signIn } from '../helpers';
+import { auth, KEYS, NORTH, outbox, setMexicoCityTime, signIn } from '../helpers';
 
 // Phase 18: no absences and no messages on days without classes. Clock: Tue 2026-10-06 (Mexico City).
 let principal: string;
@@ -10,10 +10,6 @@ let staff: string;
 let southPrincipal: string;
 let studentId: string;
 
-const notifier = (sent: string[]) => ({
-  sendScanAlert: async () => {},
-  sendAbsenceAlert: async (p: { studentName: string }) => void sent.push(p.studentName),
-});
 const addDay = (body: object, token = principal) => request(app).post('/api/v1/calendar/days').set(auth(token)).send(body);
 // 08:30 Mexico City on a given date (the absence cutoff of the seeded school)
 const cutoffOn = (ymd: string) => jest.setSystemTime(new Date(`${ymd}T14:30:00Z`));
@@ -42,19 +38,18 @@ afterAll(async () => {
 describe('School calendar (Phase 18)', () => {
   it('a SEP holiday: no ABSENT records and no messages', async () => {
     cutoffOn('2026-11-16'); // Revolución Mexicana (Monday)
-    const sent: string[] = [];
-    expect(await evaluateAbsences(NORTH, notifier(sent))).toBe(0);
-    expect(sent).toEqual([]);
+    expect(await evaluateAbsences(NORTH)).toBe(0);
+    expect(await outbox(prisma)).toEqual([]);
     expect(await prisma.attendanceRecord.count()).toBe(0);
   });
 
   it('a Consejo Técnico day and a vacation day are skipped too; a normal day still runs', async () => {
     for (const ymd of ['2026-10-30', '2026-12-22']) {
       cutoffOn(ymd);
-      expect(await evaluateAbsences(NORTH, notifier([]))).toBe(0);
+      expect(await evaluateAbsences(NORTH)).toBe(0);
     }
     cutoffOn('2026-11-17');
-    expect(await evaluateAbsences(NORTH, notifier([]))).toBe(30);
+    expect(await evaluateAbsences(NORTH)).toBe(30);
   });
 
   it("the school's own day off (suspensión) is skipped by the absence run and by excuses", async () => {
@@ -68,9 +63,8 @@ describe('School calendar (Phase 18)', () => {
 
     await prisma.attendanceRecord.deleteMany({});
     cutoffOn('2026-10-07');
-    const sent: string[] = [];
-    expect(await evaluateAbsences(NORTH, notifier(sent))).toBe(0);
-    expect(sent).toEqual([]);
+    expect(await evaluateAbsences(NORTH)).toBe(0);
+    expect(await outbox(prisma)).toEqual([]);
   });
 
   it('excuses skip SEP days off: Fri 13 Nov (registro) → Tue 17 Nov only excuses the 17th', async () => {

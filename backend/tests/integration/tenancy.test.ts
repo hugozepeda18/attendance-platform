@@ -5,7 +5,6 @@ import { evaluateAbsences } from '../../src/services/attendance.service';
 import { hashToken } from '../../src/lib/tokens';
 import { auth, KEYS, NORTH, SOUTH } from '../helpers';
 
-const silentNotifier = { sendScanAlert: async () => {}, sendAbsenceAlert: async () => {} };
 
 afterAll(async () => {
   await prisma.school.update({ where: { id: SOUTH }, data: { active: true } });
@@ -119,7 +118,7 @@ describe('Tenant isolation (both schools share badge IDs)', () => {
   });
 
   it('the absence job for one school does not touch the other', async () => {
-    const marked = await evaluateAbsences(NORTH, silentNotifier);
+    const marked = await evaluateAbsences(NORTH);
     expect(marked).toBe(30);
     expect(await prisma.attendanceRecord.count({ where: { student: { schoolId: SOUTH } } })).toBe(0);
   });

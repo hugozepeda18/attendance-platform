@@ -23,6 +23,7 @@ model School {
   changeRequests  ChangeRequest[]
   supportSessions Session[]
   calendarDays    SchoolCalendarDay[]
+  notifications   Notification[]
 }
 
 // People who sign in to a school's web page. Devices (scanners) use ApiKey instead.
@@ -116,7 +117,7 @@ model SchoolConfig {
   timezone             String    @default("America/Mexico_City")
   dropLeadingZeros     Boolean   @default(false) // badge "0042" matches roster "42"
   absenceRunOn         DateTime? @db.Date // last school day the absence run finished
-  principalWhatsApp    String? // alerts for the principal (gate offline, pending requests) from Phase 15
+  principalWhatsApp    String? // WhatsApp alerts for the principal (gate not synced at the cutoff, new change requests)
 }
 
 model Student {
@@ -148,8 +149,52 @@ model AttendanceRecord {
   updatedByUserId String?
   updatedByUser   User?            @relation(fields: [updatedByUserId], references: [id])
   note            String?
+  notifications   Notification[]
 
   @@unique([studentId, date])
+}
+
+// WhatsApp outbox. Scans and the absence run only insert rows (in the same write as the record);
+// the worker (src/worker.ts) sends them. One message per record and type: gate retries and worker
+// restarts cannot send twice. Merged siblings share the providerId of the message that carried them.
+model Notification {
+  id            String            @id @default(uuid())
+  schoolId      String
+  school        School            @relation(fields: [schoolId], references: [id])
+  recordId      String?
+  record        AttendanceRecord? @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  type          MessageType
+  template      String // Meta template name (src/services/templates.ts)
+  phone         String // E.164
+  params        Json // template parameters after the school name, in order
+  eventAt       DateTime // when it happened; entry messages older than 2 h are not sent
+  status        MessageStatus     @default(PENDING)
+  attempts      Int               @default(0)
+  nextAttemptAt DateTime          @default(now()) // also the lease while SENDING (a crashed worker's rows come back)
+  lastError     String?
+  providerId    String?
+  sentAt        DateTime?
+  createdAt     DateTime          @default(now())
+
+  @@unique([recordId, type])
+  @@index([status, nextAttemptAt])
+  @@index([providerId])
+}
+
+enum MessageType {
+  ENTRY
+  ABSENCE
+  PRINCIPAL_ALERT
+}
+
+enum MessageStatus {
+  PENDING
+  SENDING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+  EXPIRED
 }
 
 // The school's own days without classes (suspensión, school anniversary), on top of the SEP calendar

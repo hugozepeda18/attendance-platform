@@ -1,9 +1,8 @@
 import request from 'supertest';
 import app from '../../src/index';
 import prisma from '../../src/lib/prisma';
-import { notifier } from '../../src/services/notifier';
 import { runAbsenceTick } from '../../src/jobs/absence.job';
-import { auth, KEYS, NORTH, SOUTH, setMexicoCityTime } from '../helpers';
+import { auth, KEYS, NORTH, outbox, SOUTH, setMexicoCityTime } from '../helpers';
 
 // Seeded "norte": start 08:00, grace 10, window 30 → PRESENT ≤ 08:10, TARDY < 08:30, absent from 08:30.
 // Mexico City = UTC-6; the faked day is Tuesday 2026-10-06.
@@ -16,7 +15,6 @@ const batch = (key: string, sentAt: string, events: object[]) =>
 const heartbeat = (key: string, pending: number) =>
   request(app).post('/api/v1/gate/heartbeat').set(auth(key)).send({ pending });
 
-let entryMessages: jest.SpyInstance;
 let eventSeq = 0;
 const ev = () => `test-evt-${Date.now()}-${++eventSeq}`;
 
@@ -25,11 +23,8 @@ beforeEach(async () => {
   await prisma.scanEvent.deleteMany({});
   await prisma.schoolConfig.updateMany({ data: { absenceRunOn: null } });
   await prisma.apiKey.updateMany({ data: { lastSeenAt: null, pendingScans: 0 } });
-  entryMessages = jest.spyOn(notifier, 'sendScanAlert').mockResolvedValue();
   setMexicoCityTime('07:55');
 });
-
-afterEach(() => entryMessages.mockRestore());
 
 afterAll(async () => {
   await prisma.attendanceRecord.deleteMany({});
@@ -46,7 +41,7 @@ describe('POST /attendance/scans (offline queue upload)', () => {
     expect(res.body.results[0]).toMatchObject({ result: 'TARDY', studentName: expect.any(String), grade: 1, group: 'A', scannedAt: mx('08:15'), clockSkew: false });
     const record = await prisma.attendanceRecord.findFirstOrThrow({ where: { student: { schoolId: NORTH, credentialUid: 'CARD-1A-01' } } });
     expect(record.scanTimestamp!.toISOString()).toBe(mx('08:15'));
-    expect(entryMessages).toHaveBeenCalledTimes(1);
+    expect(await outbox(prisma, 'ENTRY')).toHaveLength(1);
   });
 
   it('corrects a device clock running 7 minutes slow', async () => {
@@ -68,7 +63,7 @@ describe('POST /attendance/scans (offline queue upload)', () => {
     const again = await batch(KEYS.northScanner, mx('07:56'), [event]);
     expect(first.body.results[0].result).toBe('PRESENT');
     expect(again.body).toEqual(first.body);
-    expect(entryMessages).toHaveBeenCalledTimes(1);
+    expect(await outbox(prisma, 'ENTRY')).toHaveLength(1);
     expect(await prisma.attendanceRecord.count()).toBe(1);
   });
 
@@ -95,14 +90,14 @@ describe('POST /attendance/scans (offline queue upload)', () => {
     expect(res.body.results[0].result).toBe('TARDY');
     const record = await prisma.attendanceRecord.findFirstOrThrow({ where: { student: { schoolId: NORTH, credentialUid: 'CARD-1A-01' } } });
     expect(record.status).toBe('TARDY');
-    expect(entryMessages).not.toHaveBeenCalled();
+    expect(await outbox(prisma, 'ENTRY')).toHaveLength(0);
   });
 
   it('a scan older than 2 h is recorded but not announced', async () => {
     setMexicoCityTime('10:10');
     const res = await batch(KEYS.northScanner, mx('10:10'), [{ eventId: ev(), credentialUid: 'CARD-1A-01', scannedAt: mx('08:05') }]);
     expect(res.body.results[0].result).toBe('PRESENT');
-    expect(entryMessages).not.toHaveBeenCalled();
+    expect(await outbox(prisma, 'ENTRY')).toHaveLength(0);
   });
 
   it('rejects malformed uploads', async () => {

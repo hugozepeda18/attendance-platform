@@ -1,10 +1,20 @@
 import { useState, useEffect } from 'react';
 import { X, Phone, User, AlertTriangle, CalendarCheck, DoorOpen } from 'lucide-react';
 import { getStudentAnalytics } from '../services/attendance';
-import type { StudentAnalytics, TimelineEntry, AttendanceStatus, UserRole } from '../types';
+import type { StudentAnalytics, TimelineEntry, AttendanceStatus, UserRole, MessageStatus } from '../types';
 import StatusBadge from './StatusBadge';
 import ChangeModal from './ChangeModal';
 import ExcuseForm from './ExcuseForm';
+
+const MESSAGE_STATUS: Record<MessageStatus, string> = {
+  PENDING: 'waiting to send',
+  SENDING: 'sending',
+  SENT: 'sent',
+  DELIVERED: 'delivered',
+  READ: 'read',
+  FAILED: 'failed',
+  EXPIRED: 'not sent (too late)',
+};
 
 interface Props {
   studentId: string;
@@ -261,6 +271,11 @@ export default function Student30DayModal({ studentId, role, onClose, onChanged,
                               {e.note}{e.updatedByName ? ` · ${e.updatedByName}` : ''}
                             </span>
                           )}
+                          {e.messages?.map((m) => (
+                            <span key={m.type} className={`block text-xs ${m.status === 'FAILED' ? 'text-red-500' : 'text-slate-400'}`}>
+                              WhatsApp {m.type === 'ENTRY' ? 'entry' : 'absence'} message: {MESSAGE_STATUS[m.status]}
+                            </span>
+                          ))}
                         </span>
                         <div className="flex items-center gap-3">
                           <StatusBadge status={e.status} />

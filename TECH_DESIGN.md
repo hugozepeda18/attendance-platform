@@ -91,13 +91,13 @@
   * Evaluate the arrival time (school timezone): up to `schoolStartTime + tardyGraceMinutes` → `PRESENT`; before `schoolStartTime + absenceCutoffMinutes` (the school's safe-time window) → `TARDY`; from the cutoff on → rejected with `422 OUTSIDE_WINDOW`, nothing saved and no message (the student goes to the office; the principal can override by hand).
   * If the student already has an `EXCUSED`/`ABSENT` record for today and scans inside the window, the record is updated to the scanned status (the note is kept).
   * Guardians never receive correction messages: a queued in-window scan arriving after the absence notice updates the record silently.
-  * Send immediate "Student entered school" WhatsApp notification to the student's guardian, unless the scan is more than 2 h old (old offline queue). A failed send is logged and does not fail the scan (attendance is already saved).
+  * Queue a "Student entered school" WhatsApp message to the guardian (template `entrada`, or `entrada_retardo` when TARDY), unless the scan is more than 2 h old (old offline queue). The message is written to the outbox together with the record; the scan never waits for WhatsApp.
 * **Automated Absence Evaluator (`node-cron`):**
   * Runs once per school weekday from `schoolStartTime + absenceCutoffMinutes` in each school's timezone. Implemented as one `node-cron` tick per minute that re-reads active schools from the DB, so new schools, edited settings and deactivations apply without a restart.
-  * **Waits for gates:** while any of the school's scanner keys seen in the last 7 days is offline (no request for 2 min) or reports pending scans in its heartbeat, the run is delayed, at most 30 min; then it runs anyway. A tick missed while the server is down is caught up within the same 30 min. (Principal alert for a waiting run: Phase 15/17; logged for now.)
+  * **Waits for gates:** while any of the school's scanner keys seen in the last 7 days is offline (no request for 2 min) or reports pending scans in its heartbeat, the run is delayed, at most 30 min; then it runs anyway. A tick missed while the server is down is caught up within the same 30 min. When the run starts waiting, the principal gets a WhatsApp (`escaner_en_espera`).
   * Finds all active students without an `AttendanceRecord` for today.
   * Inserts an `ABSENT` record for each missing student.
-  * Emits automated "Unexcused Absence Alert" WhatsApp messages to respective guardians.
+  * Queues an absence notice (template `inasistencia`) for each, in the same write as the record.
 * **Authentication & Roles:**
   * All tenant routes require `Authorization: Bearer <token>`. The token is either a user session (`st_…`, from login) or a device API key (`ak_…`), and resolves server-side to `{ role, schoolId, userId? }`; client role headers are ignored.
   * Each school uses only its own URL (`<slug>.<platform domain>`). The frontend reads the slug from the hostname and sends it with the login request; the user never types it.
@@ -119,8 +119,15 @@
 * **Change requests (staff → principal):**
   * STAFF ask to change a student's status for a day (any of the last 30 days, not the future; a day without a record counts, e.g. "Register late arrival" → TARDY). Reason required; one pending request per student and day.
   * Nothing changes until the principal approves; approving writes the requested status (note = reason, author = principal) and creates the record if the day has none (the absence run then skips the student). Rejecting leaves it untouched. A principal's own change applies at once, no request.
-  * The principal is notified in the app: a red count on the Requests tab, checked every minute (WhatsApp to `principalWhatsApp` in Phase 15). Staff see their own requests and the decision.
+  * The principal is notified in the app: a red count on the Requests tab, checked every minute and a WhatsApp (`solicitud_cambio`) when `principalWhatsApp` is set. Staff see their own requests and the decision.
   * The guardian is never messaged about a change (no corrections).
+* **WhatsApp delivery (Phase 15):**
+  * One platform WhatsApp number (Cloud API) for every school; each message starts with the school's name. Templates (Utility, `es_MX`) are in `backend/src/services/templates.ts` and must be approved by Meta with the same names and text.
+  * Outbox table `Notification` (type `ENTRY | ABSENCE | PRINCIPAL_ALERT`, template, phone, params, status `PENDING → SENDING → SENT → DELIVERED → READ`, or `FAILED` / `EXPIRED`). Unique per record and type: one entry message and one absence notice per student and day at most, whatever the gate or the worker retries.
+  * Worker: a separate process (`npm run worker`) polls every 5 s. It claims a row (SENDING with a 5 min lease, so a crashed worker's rows are retried), sends, and marks SENT with Meta's message id. Errors: retried with backoff (30 s, 1, 2, 4 min), `FAILED` after 5 attempts or at once for permanent errors (number not on WhatsApp, template not approved). Without `WHATSAPP_TOKEN` it prints the messages (dev).
+  * Entry messages wait 2 min so siblings with the same guardian phone go in one message ("Ana López y Luis López"); entry messages not sent within 2 h of the arrival are `EXPIRED`. Absence notices always go.
+  * Delivery receipts: `POST /api/v1/webhooks/whatsapp` (signature `X-Hub-Signature-256` checked with `WHATSAPP_APP_SECRET`; `GET` answers Meta's verification with `WHATSAPP_VERIFY_TOKEN`). A status never goes back (a late "delivered" after "read" is ignored). The student's records list shows each day's message status.
+  * Known limit: a worker crash between Meta accepting a message and the SENT write resends it after the lease (rare duplicate, never a lost absence notice).
 * **Roster (Phase 17):** the principal adds, edits and withdraws students (grades 1–3, groups of 1–2 letters). Badges are normalized like scans and unique per school, case-insensitive (409 `BADGE_TAKEN`). The group selectors come from the data (`GET /students/groups`). The initial roster import from the school's Excel is a one-off Python migration with the first client.
 
 ## 5. API Contracts

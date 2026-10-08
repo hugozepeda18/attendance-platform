@@ -17,6 +17,7 @@ export async function createAttendanceRecord(data: {
   scanTimestamp?: Date;
   status: AttendanceStatus;
   updatedByRole: UpdatedByRole;
+  notifications?: Prisma.NotificationCreateNestedManyWithoutRecordInput;
 }) {
   return prisma.attendanceRecord.create({ data });
 }
@@ -29,6 +30,7 @@ export async function updateAttendanceRecord(
     scanTimestamp?: Date;
     updatedByRole: UpdatedByRole;
     updatedByUserId?: string | null;
+    notifications?: Prisma.NotificationUpdateManyWithoutRecordNestedInput;
   },
 ) {
   return prisma.attendanceRecord.update({ where: { id }, data });
@@ -64,7 +66,7 @@ export async function findRecordsByStudentAndDateRange(
       studentId,
       date: { gte: startDate, lte: endDate },
     },
-    include: { updatedByUser: { select: { name: true } } },
+    include: { updatedByUser: { select: { name: true } }, notifications: { select: { type: true, status: true } } },
     orderBy: { date: 'asc' },
   });
 }

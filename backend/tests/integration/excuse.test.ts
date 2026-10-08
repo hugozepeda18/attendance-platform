@@ -2,7 +2,7 @@ import request from 'supertest';
 import app from '../../src/index';
 import prisma from '../../src/lib/prisma';
 import { evaluateAbsences } from '../../src/services/attendance.service';
-import { auth, DEV_PASSWORD, KEYS, NORTH, SOUTH, setMexicoCityTime } from '../helpers';
+import { auth, DEV_PASSWORD, KEYS, NORTH, outbox, SOUTH, setMexicoCityTime } from '../helpers';
 
 // Frozen clock: Tuesday 2026-10-06. Seeded "norte": start 08:00, absence run at 08:30.
 let staff: string;
@@ -35,14 +35,10 @@ describe('Excuse in advance (Phase 13b)', () => {
     expect(res.body).toEqual({ excused: ['2026-10-06'], skipped: [] });
 
     setMexicoCityTime('08:30');
-    const notified: string[] = [];
-    await evaluateAbsences(NORTH, {
-      sendScanAlert: async () => {},
-      sendAbsenceAlert: async (p) => void notified.push(p.studentName),
-    });
+    await evaluateAbsences(NORTH);
     const record = await prisma.attendanceRecord.findFirstOrThrow({ where: { studentId } });
     expect(record).toMatchObject({ status: 'EXCUSED', note: 'Cita médica', updatedByRole: 'STAFF', updatedByUserId: staffId });
-    expect(notified).toHaveLength(29); // the rest of the school, not the excused student
+    expect(await outbox(prisma, 'ABSENCE')).toHaveLength(29); // the rest of the school, not the excused student
   });
 
   it('a range covers school days only (Fri → Mon skips the weekend)', async () => {

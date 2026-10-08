@@ -73,12 +73,7 @@ describe('evaluateAbsences (via service)', () => {
       .set(auth(KEYS.northScanner))
       .send({ credentialUid: 'CARD-1A-01' });
 
-    const silentNotifier = {
-      sendScanAlert: async () => {},
-      sendAbsenceAlert: async () => {},
-    };
-
-    const markedCount = await evaluateAbsences(NORTH, silentNotifier);
+    const markedCount = await evaluateAbsences(NORTH);
 
     // 30 students in this school - 1 scanned = 29 should be marked absent
     expect(markedCount).toBe(29);
@@ -113,17 +108,14 @@ describe('Attendance window (Phase 13)', () => {
     expect(res.status).toBe(422);
     expect(res.body.error).toBe('OUTSIDE_WINDOW');
     expect(await prisma.attendanceRecord.count()).toBe(0);
-
-    const sent: unknown[] = [];
-    const spy = { sendScanAlert: async (p: unknown) => void sent.push(p), sendAbsenceAlert: async () => {} };
-    expect((await processScan(NORTH, { credentialUid: 'CARD-1A-01' }, spy)).result).toBe('OUTSIDE_WINDOW');
-    expect(sent).toHaveLength(0);
+    expect((await processScan(NORTH, { credentialUid: 'CARD-1A-01' })).result).toBe('OUTSIDE_WINDOW');
+    expect(await prisma.notification.count()).toBe(0);
   });
 
   it('after the window, the absence run result is untouched (no correction)', async () => {
     const { evaluateAbsences } = await import('../../src/services/attendance.service');
     setMexicoCityTime('08:30');
-    await evaluateAbsences(NORTH, { sendScanAlert: async () => {}, sendAbsenceAlert: async () => {} });
+    await evaluateAbsences(NORTH);
     setMexicoCityTime('09:20');
     expect((await scan()).status).toBe(422);
     const record = await prisma.attendanceRecord.findFirstOrThrow({ where: { studentId: await studentId() } });
@@ -149,18 +141,5 @@ describe('Attendance window (Phase 13)', () => {
     const record = await prisma.attendanceRecord.findFirstOrThrow({ where: { studentId: await studentId() } });
     expect(record).toMatchObject({ status: 'TARDY', note: 'Cita médica', updatedByRole: 'SCANNER' });
     expect(record.scanTimestamp).not.toBeNull();
-  });
-
-  it('a failing WhatsApp send does not fail the scan; attendance is saved', async () => {
-    const broken = {
-      sendScanAlert: async () => { throw new Error('WhatsApp down'); },
-      sendAbsenceAlert: async () => {},
-    };
-    const errorLog = jest.spyOn(console, 'error').mockImplementation(() => {});
-    const result = await processScan(NORTH, { credentialUid: 'CARD-1A-01' }, broken);
-    expect(result.result).toBe('PRESENT');
-    expect(await prisma.attendanceRecord.count({ where: { studentId: await studentId() } })).toBe(1);
-    expect(errorLog).toHaveBeenCalled();
-    errorLog.mockRestore();
   });
 });

@@ -2,7 +2,7 @@ import request from 'supertest';
 import app from '../../src/index';
 import prisma from '../../src/lib/prisma';
 import { evaluateAbsences } from '../../src/services/attendance.service';
-import { auth, DEV_PASSWORD, NORTH, setMexicoCityTime, signIn } from '../helpers';
+import { auth, DEV_PASSWORD, NORTH, outbox, setMexicoCityTime, signIn } from '../helpers';
 
 // Staff request a status change; only the principal approves (or rejects) it. Clock: Tue 2026-10-06.
 let principal: string;
@@ -11,7 +11,6 @@ let staff2: string;
 let southPrincipal: string;
 let southStaff: string;
 let studentId: string;
-const silent = { sendScanAlert: async () => {}, sendAbsenceAlert: async () => {} };
 const EMAIL2 = 'staff2-change-test@norte.test';
 
 const change = (body: object, token = staff) => request(app).post('/api/v1/attendance/changes').set(auth(token)).send(body);
@@ -49,7 +48,7 @@ afterAll(async () => {
 
 describe('Change requests', () => {
   it('staff request ABSENT → TARDY; nothing changes until the principal approves', async () => {
-    await evaluateAbsences(NORTH, silent); // after the cutoff: the student is ABSENT
+    await evaluateAbsences(NORTH); // after the cutoff: the student is ABSENT
     const res = await change({ studentId, date: '2026-10-06', status: 'TARDY', reason: 'Llegó 9:10 con su mamá' });
     expect(res.status).toBe(202);
     expect(res.body.request).toMatchObject({ fromStatus: 'ABSENT', toStatus: 'TARDY', state: 'PENDING', requestedBy: 'Prefecto norte' });
@@ -72,14 +71,13 @@ describe('Change requests', () => {
     await decide(res.body.request.id, 'approve');
 
     setMexicoCityTime('08:30');
-    const notified: string[] = [];
-    await evaluateAbsences(NORTH, { ...silent, sendAbsenceAlert: async (p) => void notified.push(p.studentName) });
-    expect(notified).toHaveLength(29);
+    await evaluateAbsences(NORTH);
+    expect(await outbox(prisma, 'ABSENCE')).toHaveLength(29);
     expect((await record())!.status).toBe('TARDY');
   });
 
   it('rejecting leaves the record as it was', async () => {
-    await evaluateAbsences(NORTH, silent);
+    await evaluateAbsences(NORTH);
     const { body } = await change({ studentId, date: '2026-10-06', status: 'EXCUSED', reason: 'x' });
     expect((await decide(body.request.id, 'reject')).body.state).toBe('REJECTED');
     expect((await record())!.status).toBe('ABSENT');
@@ -100,7 +98,7 @@ describe('Change requests', () => {
     expect((await change(body)).body.error).toBe('ALREADY_REQUESTED');
     expect((await change({ ...body, date: '2026-10-07' })).body.error).toBe('FUTURE_DATE');
     expect((await change({ ...body, date: '2026-09-01' })).body.error).toBe('TOO_OLD');
-    await evaluateAbsences(NORTH, silent);
+    await evaluateAbsences(NORTH);
     expect((await change({ ...body, date: '2026-10-06', status: 'ABSENT' }, principal)).body.error).toBe('NO_CHANGE');
     expect((await change({ ...body, reason: '' })).status).toBe(400);
   });

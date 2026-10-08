@@ -14,6 +14,11 @@ export const KEYS = {
 
 export const auth = (key: string) => ({ Authorization: `Bearer ${key}` });
 
+// WhatsApp messages waiting in the outbox (what the worker sends), oldest first. Records are deleted
+// with their messages (cascade), so wiping attendance records also empties this.
+export const outbox = (prisma: import('@prisma/client').PrismaClient, type?: 'ENTRY' | 'ABSENCE' | 'PRINCIPAL_ALERT') =>
+  prisma.notification.findMany({ where: { type }, orderBy: { createdAt: 'asc' } });
+
 export const DEV_PASSWORD = 'dev-password-123';
 export const OWNER_EMAIL = 'owner@platform.test';
 
@@ -21,6 +26,7 @@ export const OWNER_EMAIL = 'owner@platform.test';
 export async function cleanupCreatedSchools(prisma: import('@prisma/client').PrismaClient) {
   const where = { schoolId: { notIn: [NORTH, SOUTH] } };
   await prisma.changeRequest.deleteMany({ where });
+  await prisma.notification.deleteMany({ where });
   await prisma.schoolCalendarDay.deleteMany({ where });
   await prisma.session.deleteMany({ where: { user: where } });
   await prisma.session.deleteMany({ where });
