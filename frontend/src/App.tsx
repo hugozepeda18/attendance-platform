@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { Me, ViewTab } from './types';
+import type { GroupInfo, Me, ViewTab } from './types';
 import NavBar from './components/NavBar';
 import SearchBar from './components/SearchBar';
 import GroupView from './pages/GroupView';
@@ -7,6 +7,10 @@ import GradeView from './pages/GradeView';
 import Student30DayModal from './components/Student30DayModal';
 import SignIn from './pages/SignIn';
 import StaffView from './pages/StaffView';
+import StudentsView from './pages/StudentsView';
+import RequestsView from './pages/RequestsView';
+import { listGroups } from './services/students';
+import { listChangeRequests } from './services/attendance';
 import { getMe, logout } from './services/auth';
 import { getToken, clearToken } from './services/session';
 
@@ -18,6 +22,9 @@ export default function App() {
   const [selectedGroup, setSelectedGroup] = useState('A');
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [groups, setGroups] = useState<GroupInfo[]>([]);
+  const [pendingRequests, setPendingRequests] = useState(0);
+  const isPrincipal = me?.role === 'PRINCIPAL' || me?.role === 'SUPERADMIN';
 
   // Restore the session on reload
   useEffect(() => {
@@ -27,6 +34,27 @@ export default function App() {
       .catch(() => clearToken())
       .finally(() => setChecking(false));
   }, []);
+
+  // The school's real groups (Phase 17), reloaded whenever something changes.
+  useEffect(() => {
+    if (me?.school) listGroups().then(setGroups).catch(() => {});
+  }, [me, refreshKey]);
+
+  // The principal's notification: pending requests badge, checked every minute.
+  // ponytail: polling; the WhatsApp alert to the principal comes with Phase 15.
+  useEffect(() => {
+    if (!me?.school || !isPrincipal) return;
+    const check = () => listChangeRequests('PENDING').then((r) => setPendingRequests(r.pending ?? 0)).catch(() => {});
+    check();
+    const timer = setInterval(check, 60_000);
+    return () => clearInterval(timer);
+  }, [me, isPrincipal, refreshKey]);
+
+  const gradeGroups = groups.filter((g) => g.grade === selectedGrade).map((g) => g.group);
+  // Switching grade: keep the group if that grade has it, else its first group.
+  useEffect(() => {
+    if (gradeGroups.length && !gradeGroups.includes(selectedGroup)) setSelectedGroup(gradeGroups[0]);
+  }, [groups, selectedGrade]);
 
   function handleSignOut() {
     logout().catch(() => {}).finally(() => {
@@ -55,11 +83,16 @@ export default function App() {
         schoolName={me.school.name}
         userName={me.user?.name ?? null}
         onSignOut={handleSignOut}
+        pendingRequests={pendingRequests}
       />
 
       <main className="max-w-7xl mx-auto px-4 py-6 space-y-5">
         {activeTab === 'staff' ? (
           <StaffView currentUserId={me.user?.id ?? null} />
+        ) : activeTab === 'students' ? (
+          <StudentsView onChanged={() => setRefreshKey((k) => k + 1)} />
+        ) : activeTab === 'requests' ? (
+          <RequestsView role={role} onDecided={() => setRefreshKey((k) => k + 1)} />
         ) : (
           <>
             {/* Search bar */}
@@ -85,7 +118,7 @@ export default function App() {
 
               {activeTab === 'group' && (
                 <div className="flex gap-1.5">
-                  {['A', 'B'].map((g) => (
+                  {gradeGroups.map((g) => (
                     <button
                       key={g}
                       onClick={() => setSelectedGroup(g)}
@@ -104,8 +137,8 @@ export default function App() {
 
             {/* Main content */}
             {activeTab === 'grade' ? (
-              <GradeView grade={selectedGrade} onGroupSelect={handleGroupSelect} />
-            ) : (
+              <GradeView grade={selectedGrade} groups={gradeGroups} onGroupSelect={handleGroupSelect} refreshKey={refreshKey} />
+            ) : gradeGroups.includes(selectedGroup) ? (
               <GroupView
                 grade={selectedGrade}
                 group={selectedGroup}
@@ -113,6 +146,8 @@ export default function App() {
                 onStudentSelect={setSelectedStudentId}
                 refreshKey={refreshKey}
               />
+            ) : (
+              <p className="py-20 text-center text-slate-400">No students in grade {selectedGrade} yet.</p>
             )}
           </>
         )}

@@ -5,6 +5,8 @@ import type { GroupAnalytics } from '../types';
 
 interface Props {
   grade: number;
+  groups: string[];
+  refreshKey: number;
   onGroupSelect: (grade: number, group: string) => void;
 }
 
@@ -14,14 +16,14 @@ interface GroupCard {
   error: boolean;
 }
 
-export default function GradeView({ grade, onGroupSelect }: Props) {
+export default function GradeView({ grade, groups, refreshKey, onGroupSelect }: Props) {
   const [cards, setCards] = useState<GroupCard[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     setIsLoading(true);
     Promise.all(
-      ['A', 'B'].map((g) =>
+      groups.map((g) =>
         getGroupAnalytics(grade, g)
           .then((data): GroupCard => ({ group: g, data, error: false }))
           .catch((): GroupCard => ({ group: g, data: null, error: true })),
@@ -29,7 +31,7 @@ export default function GradeView({ grade, onGroupSelect }: Props) {
     )
       .then(setCards)
       .finally(() => setIsLoading(false));
-  }, [grade]);
+  }, [grade, groups.join(), refreshKey]);
 
   if (isLoading) {
     return (

@@ -100,7 +100,8 @@ export async function processScan(
   const now = new Date();
   const { at, clockSkew } = resolveScanTime(now, input.scannedAt, input.sentAt);
   const credentialUid = normalizeCredential(input.credentialUid, config.dropLeadingZeros);
-  const student = credentialUid ? await findStudentByCredentialUid(schoolId, credentialUid) : null;
+  const found = credentialUid ? await findStudentByCredentialUid(schoolId, credentialUid) : null;
+  const student = found?.active ? found : null; // a withdrawn student's badge reads as unknown
 
   const outcome: ScanOutcome = {
     eventId: input.eventId ?? null,

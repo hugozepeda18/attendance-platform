@@ -6,6 +6,7 @@ import adminRouter from './routes/admin';
 import authRouter from './routes/auth';
 import usersRouter from './routes/users';
 import gateRouter from './routes/gate';
+import studentsRouter from './routes/students';
 import { scheduleAbsenceJob } from './jobs/absence.job';
 
 const app = express();
@@ -15,7 +16,7 @@ app.use(express.json());
 if (process.env.NODE_ENV !== 'test') {
   app.use((req, res, next) => {
     const t = Date.now();
-    res.on('finish', () => console.log(`${req.method} ${req.path} ${res.statusCode} ${Date.now() - t}ms`));
+    res.on('finish', () => console.log(`${req.method} ${req.originalUrl.split('?')[0]} ${res.statusCode} ${Date.now() - t}ms`));
     next();
   });
 }
@@ -25,6 +26,7 @@ app.use('/api/v1', attendanceRouter);
 app.use('/api/v1', adminRouter);
 app.use('/api/v1', usersRouter);
 app.use('/api/v1', gateRouter);
+app.use('/api/v1', studentsRouter);
 
 export default app;
 

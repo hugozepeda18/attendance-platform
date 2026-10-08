@@ -26,6 +26,7 @@ export type ConfigFields = {
   absenceCutoffMinutes: number;
   timezone: string;
   dropLeadingZeros?: boolean;
+  principalWhatsApp?: string | null;
 };
 
 // School, config, keys and optional first principal are written in one statement: all or nothing.

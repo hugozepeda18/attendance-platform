@@ -20,6 +20,7 @@ export const OWNER_EMAIL = 'owner@platform.test';
 // Removes every school (and its dependents) not created by the seed.
 export async function cleanupCreatedSchools(prisma: import('@prisma/client').PrismaClient) {
   const where = { schoolId: { notIn: [NORTH, SOUTH] } };
+  await prisma.changeRequest.deleteMany({ where });
   await prisma.session.deleteMany({ where: { user: where } });
   await prisma.user.deleteMany({ where });
   await prisma.apiKey.deleteMany({ where });
@@ -31,4 +32,11 @@ export async function cleanupCreatedSchools(prisma: import('@prisma/client').Pri
 export function setMexicoCityTime(hhmm: string): void {
   const [h, m] = hhmm.split(':').map(Number);
   jest.setSystemTime(new Date(Date.UTC(2026, 9, 6, h + 6, m)));
+}
+
+export async function signIn(school: string, email: string): Promise<string> {
+  const res = await (await import('supertest')).default((await import('../src/index')).default)
+    .post('/api/v1/auth/login')
+    .send({ school, email, password: DEV_PASSWORD });
+  return res.body.token;
 }

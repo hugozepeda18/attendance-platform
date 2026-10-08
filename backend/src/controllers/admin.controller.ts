@@ -10,7 +10,7 @@ import {
   getApiKeys,
   revokeKey,
 } from '../services/school.service';
-import { emailSchema, passwordSchema, slugSchema } from '../lib/validation';
+import { emailSchema, passwordSchema, slugSchema, whatsappSchema } from '../lib/validation';
 
 const isTimezone = (tz: string) => {
   try {
@@ -50,6 +50,7 @@ const UpdateSchoolSchema = z
     absenceCutoffMinutes: configFields.absenceCutoffMinutes.optional(),
     timezone: configFields.timezone.optional(),
     dropLeadingZeros: z.boolean().optional(), // badge "0042" matches roster "42"
+    principalWhatsApp: z.union([whatsappSchema, z.literal('').transform(() => null), z.null()]).optional(),
   })
   .refine((v) => Object.values(v).some((x) => x !== undefined), 'nothing to update');
 

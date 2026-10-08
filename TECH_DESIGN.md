@@ -56,6 +56,7 @@
   * `timezone`: String (e.g., `"America/Mexico_City"`)
   * `dropLeadingZeros`: Boolean (default `false`; badge `0042` matches roster `42`, for rosters that lost zeros in Excel)
   * `absenceRunOn`: Date (last day the absence run finished; the run happens once per school day)
+  * `principalWhatsApp`: String? (E.164; principal alerts from Phase 15; set in the admin dashboard)
 * **Student:**
   * `id`: UUID (PK)
   * `credentialUid`: String (Unique, badge barcode/RFID string)
@@ -65,6 +66,8 @@
   * `group`: String (e.g., `"A"`, `"B"`, `"C"`)
   * `guardianName`: String
   * `guardianWhatsApp`: String (E.164 format, e.g., `"+523312345678"`)
+  * `active`: Boolean (default `true`; withdrawn students are not scanned, not marked absent, not on the gate roster or in lists, and keep their badge until given another one)
+* **ChangeRequest:** `id`, `schoolId`, `studentId`, `date`, `fromStatus` (null = no record yet), `toStatus`, `reason`, `requestedById` (staff user), `state` (`PENDING | APPROVED | REJECTED`), `decidedById`, `decidedAt`, `createdAt`.
 * **AttendanceRecord:**
   * `id`: UUID (PK)
   * `studentId`: UUID (FK -> Student.id)
@@ -107,6 +110,12 @@
   * The absence run skips excused students automatically (they have a record), so the guardian gets no absence notice.
 * **Role-Based Overrides:**
   * Only an authenticated `PRINCIPAL` (or `SUPERADMIN`) can manually alter an attendance record (e.g., changing `ABSENT` to `EXCUSED` or `PRESENT`). Staff cannot override.
+* **Change requests (staff → principal):**
+  * STAFF ask to change a student's status for a day (any of the last 30 days, not the future; a day without a record counts, e.g. "Register late arrival" → TARDY). Reason required; one pending request per student and day.
+  * Nothing changes until the principal approves; approving writes the requested status (note = reason, author = principal) and creates the record if the day has none (the absence run then skips the student). Rejecting leaves it untouched. A principal's own change applies at once, no request.
+  * The principal is notified in the app: a red count on the Requests tab, checked every minute (WhatsApp to `principalWhatsApp` in Phase 15). Staff see their own requests and the decision.
+  * The guardian is never messaged about a change (no corrections).
+* **Roster (Phase 17):** the principal adds, edits and withdraws students (grades 1–3, groups of 1–2 letters). Badges are normalized like scans and unique per school, case-insensitive (409 `BADGE_TAKEN`). The group selectors come from the data (`GET /students/groups`). The initial roster import from the school's Excel is a one-off Python migration with the first client.
 
 ## 5. API Contracts
 * `POST /api/v1/attendance/scan` (SCANNER, STAFF, PRINCIPAL)
@@ -138,6 +147,11 @@
 * `POST /api/v1/auth/logout` → 204 (revokes the current session).
 * `POST /api/v1/attendance/excuses` (STAFF/PRINCIPAL) `{ studentId, from: "YYYY-MM-DD", to?, reason }` → 201 `{ excused: [dates], skipped: [dates] }`; 400 `EXCUSE_NOT_ALLOWED`, 404 for another school's student.
 * `GET /api/v1/attendance/analytics/student/:id` timeline entries include `note` and `updatedByName`; response includes `upcomingExcuses` (next 60 days).
+* `POST /api/v1/attendance/changes` (STAFF/PRINCIPAL) `{ studentId, date: "YYYY-MM-DD", status, reason }` → STAFF: 202 `{ applied: false, request }`; PRINCIPAL: 200 `{ applied: true, record }`. 400 `FUTURE_DATE | TOO_OLD | NO_CHANGE`, 409 `ALREADY_REQUESTED`, 404 another school's or a withdrawn student.
+* `GET /api/v1/attendance/changes?state=PENDING|APPROVED|REJECTED` → `{ requests: [{ id, student: { id, name, grade, group }, date, fromStatus, toStatus, reason, state, requestedBy, decidedBy, decidedAt, createdAt }], pending }` (newest 100; STAFF get only their own and no `pending`).
+* `POST /api/v1/attendance/changes/:id/approve` | `/reject` (PRINCIPAL) → `{ id, state }`; 409 `ALREADY_DECIDED`, 404 another school's.
+* `GET /api/v1/students/groups` (STAFF/PRINCIPAL) → `{ groups: [{ grade, group, students }] }` (active students).
+* PRINCIPAL: `GET /api/v1/students?grade&group` (withdrawn included), `POST /api/v1/students` `{ firstName, lastName, grade, group, credentialUid, guardianName, guardianWhatsApp }`, `PATCH /api/v1/students/:id` (same fields + `active`, all optional). 409 `BADGE_TAKEN`.
 * `GET /api/v1/me` → `{ role, school: { id, name, slug } | null, user: { id, name, email } | null }`
 * PRINCIPAL (or SUPERADMIN with `x-school-id`): `GET /api/v1/users`, `POST /api/v1/users` `{ email, name, role: STAFF|PRINCIPAL, password (10+) }`, `PATCH /api/v1/users/:id` `{ name?, role?, active?, password? }`. 409 `EMAIL_TAKEN`, 400 `SELF_LOCKOUT`.
 * Super-admin only (`Authorization: Bearer $SUPERADMIN_API_KEY`):
@@ -145,7 +159,7 @@
   * `POST /api/v1/admin/schools` also accepts `principal: { email, name, password }`; school, config, keys and principal are created atomically.
   * `GET /api/v1/admin/schools` → `{ schools: [{ id, name, slug, active, timezone, studentCount }] }`
   * `GET /api/v1/admin/schools/:id` → `{ id, name, slug, active, config, studentCount, userCount, activeKeyCount }`
-  * `PATCH /api/v1/admin/schools/:id` `{ active?, slug?, name?, schoolStartTime?, tardyGraceMinutes?, absenceCutoffMinutes?, timezone? }` (409 `SLUG_TAKEN`)
+  * `PATCH /api/v1/admin/schools/:id` `{ active?, slug?, name?, schoolStartTime?, tardyGraceMinutes?, absenceCutoffMinutes?, timezone?, dropLeadingZeros?, principalWhatsApp? }` (409 `SLUG_TAKEN`)
   * `GET|POST /api/v1/admin/schools/:id/keys` (`POST` body `{ role, label }` → plaintext key once), `DELETE /api/v1/admin/schools/:id/keys/:keyId` (revoke)
 * Error codes: `401 UNAUTHENTICATED`, `403 FORBIDDEN | SCHOOL_INACTIVE`, `400 SCHOOL_REQUIRED` (super-admin without `x-school-id`).
 ## 6. Platform Admin Dashboard

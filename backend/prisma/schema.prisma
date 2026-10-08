@@ -8,18 +8,19 @@ datasource db {
 }
 
 model School {
-  id         String        @id @default(uuid())
-  slug       String        @unique // subdomain: <slug>.<platform domain>
-  name       String
-  active     Boolean       @default(true)
-  createdAt  DateTime      @default(now())
-  config     SchoolConfig?
-  students   Student[]
-  teachers   Teacher[]
-  subjects   Subject[]
-  apiKeys    ApiKey[]
-  users      User[]
-  scanEvents ScanEvent[]
+  id             String          @id @default(uuid())
+  slug           String          @unique // subdomain: <slug>.<platform domain>
+  name           String
+  active         Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  config         SchoolConfig?
+  students       Student[]
+  teachers       Teacher[]
+  subjects       Subject[]
+  apiKeys        ApiKey[]
+  users          User[]
+  scanEvents     ScanEvent[]
+  changeRequests ChangeRequest[]
 }
 
 // People who sign in to a school's web page. Devices (scanners) use ApiKey instead.
@@ -35,6 +36,8 @@ model User {
   createdAt    DateTime           @default(now())
   sessions     Session[]
   updates      AttendanceRecord[]
+  requested    ChangeRequest[]    @relation("requestedBy")
+  decided      ChangeRequest[]    @relation("decidedBy")
 
   @@unique([schoolId, email])
 }
@@ -109,6 +112,7 @@ model SchoolConfig {
   timezone             String    @default("America/Mexico_City")
   dropLeadingZeros     Boolean   @default(false) // badge "0042" matches roster "42"
   absenceRunOn         DateTime? @db.Date // last school day the absence run finished
+  principalWhatsApp    String? // alerts for the principal (gate offline, pending requests) from Phase 15
 }
 
 model Student {
@@ -122,7 +126,9 @@ model Student {
   group             String
   guardianName      String
   guardianWhatsApp  String
+  active            Boolean            @default(true) // withdrawn: no scans, no absence run, hidden from lists
   attendanceRecords AttendanceRecord[]
+  changeRequests    ChangeRequest[]
 
   @@unique([schoolId, credentialUid])
 }
@@ -140,6 +146,35 @@ model AttendanceRecord {
   note            String?
 
   @@unique([studentId, date])
+}
+
+// Staff ask the principal to change a day's status (e.g. "llegó 9:10 con su mamá" → TARDY).
+// Nothing changes until the principal approves; the guardian is never messaged about it.
+model ChangeRequest {
+  id            String            @id @default(uuid())
+  schoolId      String
+  school        School            @relation(fields: [schoolId], references: [id])
+  studentId     String
+  student       Student           @relation(fields: [studentId], references: [id])
+  date          DateTime          @db.Date
+  fromStatus    AttendanceStatus? // status when requested; null = no record that day yet
+  toStatus      AttendanceStatus
+  reason        String
+  requestedById String
+  requestedBy   User              @relation("requestedBy", fields: [requestedById], references: [id])
+  state         RequestState      @default(PENDING)
+  decidedById   String?
+  decidedBy     User?             @relation("decidedBy", fields: [decidedById], references: [id])
+  decidedAt     DateTime?
+  createdAt     DateTime          @default(now())
+
+  @@index([schoolId, state])
+}
+
+enum RequestState {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum AttendanceStatus {

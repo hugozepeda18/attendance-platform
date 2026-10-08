@@ -12,6 +12,7 @@ export interface SchoolConfig {
   tardyGraceMinutes: number;
   absenceCutoffMinutes: number;
   timezone: string;
+  principalWhatsApp?: string | null;
 }
 
 export interface SchoolSummary {
@@ -52,7 +53,7 @@ export interface SchoolUser {
   active: boolean;
   createdAt: string;
 }
-export type ViewTab = 'grade' | 'group' | 'staff';
+export type ViewTab = 'grade' | 'group' | 'staff' | 'students' | 'requests';
 export type PersonRole = 'STAFF' | 'PRINCIPAL';
 
 export interface AttendanceOverview {
@@ -122,4 +123,38 @@ export interface StudentAnalytics {
   upcomingExcuses: TimelineEntry[];
   isHabituallyTardy: boolean;
   isChronicAbsentee: boolean;
+}
+
+export interface GroupInfo {
+  grade: number;
+  group: string;
+  students: number;
+}
+
+export interface RosterStudent {
+  id: string;
+  firstName: string;
+  lastName: string;
+  grade: number;
+  group: string;
+  credentialUid: string;
+  guardianName: string;
+  guardianWhatsApp: string;
+  active: boolean;
+}
+
+export type RequestState = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface ChangeRequest {
+  id: string;
+  student: { id: string; name: string; grade: number; group: string };
+  date: string;
+  fromStatus: AttendanceStatus | null;
+  toStatus: AttendanceStatus;
+  reason: string;
+  state: RequestState;
+  requestedBy: string;
+  decidedBy: string | null;
+  decidedAt: string | null;
+  createdAt: string;
 }

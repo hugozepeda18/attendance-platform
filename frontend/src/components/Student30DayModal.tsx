@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { X, Phone, User, AlertTriangle, Clock, CalendarCheck } from 'lucide-react';
+import { X, Phone, User, AlertTriangle, CalendarCheck, DoorOpen } from 'lucide-react';
 import { getStudentAnalytics } from '../services/attendance';
 import type { StudentAnalytics, TimelineEntry, AttendanceStatus, UserRole } from '../types';
 import StatusBadge from './StatusBadge';
-import OverrideModal from './OverrideModal';
+import ChangeModal from './ChangeModal';
 import ExcuseForm from './ExcuseForm';
 
 interface Props {
@@ -48,10 +48,13 @@ function buildCalendar(timeline: TimelineEntry[]): CalendarDay[] {
 export default function Student30DayModal({ studentId, role, onClose, onChanged, refreshKey }: Props) {
   const [data, setData] = useState<StudentAnalytics | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [overrideEntry, setOverrideEntry] = useState<TimelineEntry | null>(null);
+  // A day to change: staff request it, the principal applies it. Any past day, recorded or not.
+  const [changeDay, setChangeDay] = useState<{ date: string; entry: TimelineEntry | null; initial?: AttendanceStatus } | null>(null);
   const [excusing, setExcusing] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const canExcuse = role === 'STAFF' || role === 'PRINCIPAL' || role === 'SUPERADMIN';
+  const canChange = canExcuse;
+  const verb = role === 'STAFF' ? 'request a change' : 'change it';
 
   function reload() {
     setIsLoading(true);
@@ -114,15 +117,27 @@ export default function Student30DayModal({ studentId, role, onClose, onChanged,
                 </div>
               </div>
 
-              {/* Excuse in advance */}
+              {/* Excuse in advance / late arrival */}
               {canExcuse && !excusing && (
                 <div className="px-6 py-3 border-b border-slate-200 space-y-2">
-                  <button
-                    onClick={() => { setExcusing(true); setNotice(null); }}
-                    className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-purple-600 text-white text-sm font-medium hover:bg-purple-700"
-                  >
-                    <CalendarCheck size={16} /> Excuse absence
-                  </button>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <button
+                      onClick={() => { setExcusing(true); setNotice(null); }}
+                      className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-purple-600 text-white text-sm font-medium hover:bg-purple-700"
+                    >
+                      <CalendarCheck size={16} /> Excuse absence
+                    </button>
+                    <button
+                      onClick={() => {
+                        const today = calendar[calendar.length - 1];
+                        setNotice(null);
+                        setChangeDay({ date: today.dateStr, entry: today.entry, initial: 'TARDY' });
+                      }}
+                      className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-slate-300 text-slate-700 text-sm font-medium hover:bg-slate-50"
+                    >
+                      <DoorOpen size={16} /> Register late arrival
+                    </button>
+                  </div>
                   {notice && <p role="status" className="text-sm text-green-700">{notice}</p>}
                 </div>
               )}
@@ -183,10 +198,10 @@ export default function Student30DayModal({ studentId, role, onClose, onChanged,
                           ? STATUS_CELL[day.entry.status]
                           : 'bg-slate-50 text-slate-300 border-slate-200'
                         }
-                        ${role === 'PRINCIPAL' && day.entry ? 'cursor-pointer hover:opacity-75' : ''}
+                        ${canChange ? 'cursor-pointer hover:opacity-75' : ''}
                       `}
                       onClick={() => {
-                        if (role === 'PRINCIPAL' && day.entry) setOverrideEntry(day.entry);
+                        if (canChange) setChangeDay({ date: day.dateStr, entry: day.entry });
                       }}
                     >
                       <p className="text-xs font-semibold leading-none">{day.dayLabel}</p>
@@ -194,11 +209,6 @@ export default function Student30DayModal({ studentId, role, onClose, onChanged,
                         <p className="text-[9px] mt-0.5 leading-none opacity-70">
                           {day.entry.status.charAt(0)}
                         </p>
-                      )}
-                      {role === 'PRINCIPAL' && day.entry && (
-                        <span className="absolute top-0.5 right-0.5">
-                          <Clock size={7} className="opacity-50" />
-                        </span>
                       )}
                     </div>
                   ))}
@@ -218,10 +228,8 @@ export default function Student30DayModal({ studentId, role, onClose, onChanged,
                   </span>
                 </div>
 
-                {role === 'PRINCIPAL' && data!.timeline.length > 0 && (
-                  <p className="mt-2 text-xs text-indigo-500">
-                    Click any recorded day to override its status.
-                  </p>
+                {canChange && (
+                  <p className="mt-2 text-xs text-indigo-500">Click a day to {verb}.</p>
                 )}
               </div>
 
@@ -247,12 +255,12 @@ export default function Student30DayModal({ studentId, role, onClose, onChanged,
                         </span>
                         <div className="flex items-center gap-3">
                           <StatusBadge status={e.status} />
-                          {role === 'PRINCIPAL' && (
+                          {canChange && (
                             <button
-                              onClick={() => setOverrideEntry(e)}
+                              onClick={() => setChangeDay({ date: e.date, entry: e })}
                               className="text-xs text-indigo-600 hover:underline"
                             >
-                              Override
+                              {role === 'STAFF' ? 'Request change' : 'Change'}
                             </button>
                           )}
                         </div>
@@ -266,14 +274,18 @@ export default function Student30DayModal({ studentId, role, onClose, onChanged,
         </div>
       </div>
 
-      {overrideEntry && data && (
-        <OverrideModal
-          recordId={overrideEntry.id}
-          currentStatus={overrideEntry.status}
+      {changeDay && data && (
+        <ChangeModal
+          studentId={studentId}
           studentName={`${data.student.firstName} ${data.student.lastName}`}
-          onClose={() => setOverrideEntry(null)}
-          onComplete={() => {
-            setOverrideEntry(null);
+          date={changeDay.date}
+          currentStatus={changeDay.entry?.status ?? null}
+          initialStatus={changeDay.initial}
+          role={role}
+          onClose={() => setChangeDay(null)}
+          onComplete={(message) => {
+            setChangeDay(null);
+            setNotice(message);
             onChanged();
           }}
         />

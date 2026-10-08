@@ -14,7 +14,7 @@ const toYmd = (d: Date) => d.toISOString().slice(0, 10);
 
 // Office staff or the principal excuse a student before the absence run, so the guardian gets no
 // absence notice. Only days without a record are written; existing records are never changed here
-// (changing those stays PRINCIPAL-only via PATCH /attendance/record/:id).
+// (staff ask the principal through a change request; see change.service).
 export async function excuseInAdvance(
   auth: AuthContext,
   input: { studentId: string; from: string; to?: string; reason: string },
@@ -34,13 +34,13 @@ export async function excuseInAdvance(
   if ((to.getTime() - from.getTime()) / DAY_MS >= MAX_RANGE_DAYS) {
     throw new ExcuseRuleError(`An excuse can cover at most ${MAX_RANGE_DAYS} days`);
   }
-  if (from < today) throw new ExcuseRuleError('Past days cannot be excused here; the principal can change those records');
+  if (from < today) throw new ExcuseRuleError('Past days cannot be excused here; request a change from the principal');
   if (
     from.getTime() === today.getTime() &&
     evaluateStatus(new Date(), config.schoolStartTime, config.tardyGraceMinutes, config.absenceCutoffMinutes, config.timezone) ===
       'OUTSIDE_WINDOW'
   ) {
-    throw new ExcuseRuleError("Today's attendance window has closed; the principal can change today's record");
+    throw new ExcuseRuleError("Today's attendance window has closed; request a change from the principal");
   }
 
   // ponytail: weekdays only; Phase 18 (school calendar) also skips SEP holidays.

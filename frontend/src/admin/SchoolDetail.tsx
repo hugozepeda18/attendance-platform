@@ -18,6 +18,7 @@ type SettingsForm = {
   tardyGraceMinutes: number;
   absenceCutoffMinutes: number;
   timezone: string;
+  principalWhatsApp: string;
 };
 
 function toForm(s: Detail): SettingsForm {
@@ -28,6 +29,7 @@ function toForm(s: Detail): SettingsForm {
     tardyGraceMinutes: s.config?.tardyGraceMinutes ?? 10,
     absenceCutoffMinutes: s.config?.absenceCutoffMinutes ?? 30,
     timezone: s.config?.timezone ?? 'America/Mexico_City',
+    principalWhatsApp: s.config?.principalWhatsApp ?? '',
   };
 }
 
@@ -143,6 +145,10 @@ export default function SchoolDetail({ id, onBack }: Props) {
             <Field label="Mark absent at (min)">
               <input type="number" min={0} max={600} required className={inputClass} value={form.absenceCutoffMinutes}
                 onChange={(e) => set({ absenceCutoffMinutes: Number(e.target.value) })} />
+            </Field>
+            <Field label="Principal's WhatsApp (alerts)">
+              <input type="tel" pattern="\+\d{10,15}" placeholder="+523312345678" className={inputClass} value={form.principalWhatsApp}
+                onChange={(e) => set({ principalWhatsApp: e.target.value.replace(/[\s-]/g, '') })} />
             </Field>
           </div>
           {form.slug !== school.slug && (

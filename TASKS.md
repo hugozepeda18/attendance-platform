@@ -153,12 +153,14 @@ Per `CLAUDE.md`, any task that adds UI or dependencies must first be added to `T
   - Notes: roster comes from `GET /gate/roster` (badge, name, grade, group; no guardian data). Scans older than 20 h are dropped on the PC, not sent (the server would count them as today). Verified headless with Python 3.8 and live against the dev server (13 scans online/offline/reconnect, 11 messages, one per guardian, resend changed nothing). **Not yet run:** `build.ps1` and `gate-setup.ps1` on a real Windows PC.
   - [ ] Done when: a pilot with real hardware passes 50 scans online, cable unplugged, 20 scans, reconnect; every scan gets the correct status and exactly one WhatsApp each.
 
-- [ ] **Phase 17: Student roster management** *(M)*
-  - [ ] `Student.active` (withdrawn students stop being marked absent).
-  - [ ] Principal UI: add / edit / deactivate students; assign or reassign the badge.
-  - [ ] Groups come from the school's data, not hardcoded `['A','B']` in `App.tsx`. Grades stay 1–3: **secundaria only** (decided 2026-10-07).
+- [x] **Phase 17: Student roster management** *(M)* — done 2026-10-08
+  - [x] `Student.active` (withdrawn students stop being marked absent, can't scan, leave the gate roster and the lists; they keep their badge until given another).
+  - [x] Principal UI (Students tab): add / edit / withdraw / reactivate students; assign or reassign the badge (409 if another student has it).
+  - [x] Groups come from the school's data (`GET /students/groups`), not hardcoded `['A','B']`. Grades stay 1–3: **secundaria only** (decided 2026-10-07).
+  - [x] **Change requests (added 2026-10-08):** staff request a status change for a day (incl. "Register late arrival" → TARDY); the principal sees a count on the Requests tab and approves or rejects; the principal's own changes apply at once. No message to the guardian.
+  - [x] `SchoolConfig.principalWhatsApp` (admin dashboard), used by Phase 15 alerts.
   - [ ] **Deferred to the first client:** the initial roster comes from the client's Excel files, migrated with Python scripts written together at that time (no in-app import for now).
-  - Done when: the UI shows the school's real groups, and a deactivated student is never marked absent.
+  - Done when: the UI shows the school's real groups, and a deactivated student is never marked absent. ✔ (`roster.test.ts`, `change.test.ts`)
 
 - [ ] **Phase 18: School calendar** *(M)*
   - [ ] Absence run only on school days: skip weekends and every non-school day of the **SEP calendar for educación básica** (official holidays, vacations, Consejo Técnico Escolar days). Dates are loaded from the official SEP publication for the school year (cited in code), not typed from memory.
