@@ -4,6 +4,7 @@ import prisma from '../../src/lib/prisma';
 import { auth, KEYS, NORTH } from '../helpers';
 
 afterAll(async () => {
+  await prisma.attendanceRecord.deleteMany({}); // leave no records for the next suite
   await prisma.$disconnect();
 });
 
@@ -85,5 +86,36 @@ describe('PATCH /api/v1/attendance/record/:id', () => {
 
     expect(res.status).toBe(404);
     expect(res.body.error).toBe('NOT_FOUND');
+  });
+});
+
+describe('Audit trail (Phase 21)', () => {
+  it('keeps every status change with who and the note, oldest first, in the student timeline', async () => {
+    const record = await createRecord();
+    const patch = (body: object) => request(app).patch(`/api/v1/attendance/record/${record!.id}`)
+      .set(auth(KEYS.northPrincipal)).send(body);
+    await patch({ status: 'ABSENT' });
+    await patch({ status: 'ABSENT' }); // nothing changed: no new entry
+    await patch({ status: 'EXCUSED', note: 'Cita médica' });
+
+    const res = await request(app).get(`/api/v1/attendance/analytics/student/${record!.studentId}`)
+      .set(auth(KEYS.northStaff));
+    const history = res.body.timeline.find((e: { id: string }) => e.id === record!.id).history;
+    expect(history.map((h: { fromStatus: string | null; toStatus: string; byRole: string; note: string | null }) =>
+      [h.fromStatus, h.toStatus, h.byRole, h.note])).toEqual([
+      [null, record!.status, 'SCANNER', null], // the scan
+      [record!.status, 'ABSENT', 'PRINCIPAL', null],
+      ['ABSENT', 'EXCUSED', 'PRINCIPAL', 'Cita médica'],
+    ]);
+  });
+
+  it('records rows written in bulk (excuses use createMany) and stamps the school', async () => {
+    const student = await prisma.student.findFirst({ where: { schoolId: NORTH } });
+    await prisma.attendanceRecord.createMany({
+      data: [{ studentId: student!.id, date: new Date('2026-10-01'), status: 'EXCUSED', updatedByRole: 'STAFF', note: 'x' }],
+    });
+    const changes = await prisma.recordChange.findMany({ where: { record: { studentId: student!.id } } });
+    expect(changes).toHaveLength(1);
+    expect(changes[0]).toMatchObject({ schoolId: NORTH, fromStatus: null, toStatus: 'EXCUSED', note: 'x' });
   });
 });

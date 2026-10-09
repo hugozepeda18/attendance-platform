@@ -24,6 +24,7 @@ model School {
   supportSessions Session[]
   calendarDays    SchoolCalendarDay[]
   notifications   Notification[]
+  recordChanges   RecordChange[]
 }
 
 // People who sign in to a school's web page. Devices (scanners) use ApiKey instead.
@@ -41,6 +42,7 @@ model User {
   updates      AttendanceRecord[]
   requested    ChangeRequest[]    @relation("requestedBy")
   decided      ChangeRequest[]    @relation("decidedBy")
+  recordChanges RecordChange[]
 
   @@unique([schoolId, email])
 }
@@ -151,8 +153,29 @@ model AttendanceRecord {
   updatedByUser   User?            @relation(fields: [updatedByUserId], references: [id])
   note            String?
   notifications   Notification[]
+  changes         RecordChange[]
 
   @@unique([studentId, date])
+}
+
+// Audit trail: one row per insert and per status/note change of an AttendanceRecord. Written by a
+// Postgres trigger (migration record_audit_trail), so every path (scan, absence run, excuse, override,
+// approved request, createMany) is covered without app code. `at` is the database clock.
+model RecordChange {
+  id         String            @id @default(uuid())
+  schoolId   String
+  school     School            @relation(fields: [schoolId], references: [id])
+  recordId   String
+  record     AttendanceRecord  @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  fromStatus AttendanceStatus? // null = record created
+  toStatus   AttendanceStatus
+  note       String?
+  byRole     UpdatedByRole
+  byUserId   String?
+  byUser     User?             @relation(fields: [byUserId], references: [id], onDelete: SetNull)
+  at         DateTime          @default(now())
+
+  @@index([recordId, at])
 }
 
 // WhatsApp outbox. Scans and the absence run only insert rows (in the same write as the record);

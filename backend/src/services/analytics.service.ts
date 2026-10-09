@@ -115,6 +115,14 @@ export async function getStudentAnalytics(schoolId: string, studentId: string) {
     note: r.note,
     updatedByName: r.updatedByUser?.name ?? null,
     messages: r.notifications, // WhatsApp to the guardian: type + delivery status
+    history: r.changes.map((c) => ({
+      at: c.at.toISOString(),
+      fromStatus: c.fromStatus,
+      toStatus: c.toStatus,
+      note: c.note,
+      byRole: c.byRole,
+      byName: c.byUser?.name ?? null,
+    })),
   });
   const timeline = records.map(toEntry);
   const upcomingExcuses = upcoming.filter((r) => r.status === 'EXCUSED').map(toEntry);

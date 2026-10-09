@@ -108,6 +108,16 @@ export interface TimelineEntry {
   note: string | null;
   updatedByName: string | null;
   messages?: { type: 'ENTRY' | 'ABSENCE'; status: MessageStatus }[]; // WhatsApp to the guardian
+  history?: RecordChange[]; // every status change, oldest first (Phase 21)
+}
+
+export interface RecordChange {
+  at: string;
+  fromStatus: AttendanceStatus | null; // null = record created
+  toStatus: AttendanceStatus;
+  note: string | null;
+  byRole: 'SYSTEM' | 'SCANNER' | 'STAFF' | 'PRINCIPAL' | 'SUPERADMIN';
+  byName: string | null;
 }
 
 export type MessageStatus = 'PENDING' | 'SENDING' | 'SENT' | 'DELIVERED' | 'READ' | 'FAILED' | 'EXPIRED';

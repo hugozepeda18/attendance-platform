@@ -66,7 +66,11 @@ export async function findRecordsByStudentAndDateRange(
       studentId,
       date: { gte: startDate, lte: endDate },
     },
-    include: { updatedByUser: { select: { name: true } }, notifications: { select: { type: true, status: true } } },
+    include: {
+      updatedByUser: { select: { name: true } },
+      notifications: { select: { type: true, status: true } },
+      changes: { orderBy: { at: 'asc' }, include: { byUser: { select: { name: true } } } },
+    },
     orderBy: { date: 'asc' },
   });
 }

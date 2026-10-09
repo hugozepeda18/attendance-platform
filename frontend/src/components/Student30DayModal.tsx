@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { X, Phone, User, AlertTriangle, CalendarCheck, DoorOpen } from 'lucide-react';
 import { getStudentAnalytics } from '../services/attendance';
 import type { StudentAnalytics, TimelineEntry, AttendanceStatus, UserRole } from '../types';
-import { FLAGS, MESSAGE_STATUS, NO_RECORD, STATUS, T, fmtDay } from '../strings';
+import { FLAGS, MESSAGE_STATUS, NO_RECORD, ROLE, STATUS, T, fmtDateTime, fmtDay } from '../strings';
 import StatusBadge from './StatusBadge';
 import ChangeModal from './ChangeModal';
 import ExcuseForm from './ExcuseForm';
@@ -267,6 +267,20 @@ export default function Student30DayModal({ studentId, role, onClose, onChanged,
                               WhatsApp de {m.type === 'ENTRY' ? 'entrada' : 'falta'}: {MESSAGE_STATUS[m.status]}
                             </span>
                           ))}
+                          {e.history && e.history.length > 1 && (
+                            <details className="text-xs text-slate-500">
+                              <summary className="cursor-pointer text-indigo-600 min-h-[44px] flex items-center">Historial ({e.history.length})</summary>
+                              <ol className="mt-1 space-y-0.5">
+                                {e.history.map((h, i) => (
+                                  <li key={i}>
+                                    {fmtDateTime(h.at)} · {h.fromStatus ? `${STATUS[h.fromStatus]} → ` : 'Registro: '}{STATUS[h.toStatus]}
+                                    {' · '}{h.byName ?? (h.byRole === 'SYSTEM' ? 'Sistema' : ROLE[h.byRole as keyof typeof ROLE])}
+                                    {h.note && ` · “${h.note}”`}
+                                  </li>
+                                ))}
+                              </ol>
+                            </details>
+                          )}
                         </span>
                         <div className="flex items-center gap-2 shrink-0">
                           <StatusBadge status={e.status} />

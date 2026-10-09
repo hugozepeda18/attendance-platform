@@ -78,6 +78,7 @@
   * `status`: Enum (`PRESENT`, `TARDY`, `ABSENT`, `EXCUSED`)
   * `updatedByRole`: Enum (`SYSTEM`, `SCANNER`, `STAFF`, `PRINCIPAL`, `SUPERADMIN`)
   * `updatedByUserId`: UUID (Nullable FK -> User.id; the person who made a manual override)
+* **RecordChange** (audit trail, Phase 21): `id`, `schoolId`, `recordId` (cascade), `fromStatus` (null = record created), `toStatus`, `note`, `byRole`, `byUserId`, `at`. Written by a Postgres trigger on every insert and every status/note change of an AttendanceRecord, so no write path (scan, absence run, excuse `createMany`, override, approved request) can skip it. `at` is the database clock. Shown as "Historial" under each day in the student sheet (only when the day changed after it was created). Kept as long as the record.
 * **Subject & Teacher (Extensible Schema Stubs for Future):**
   * `Teacher`: `id`, `name`, `email`
   * `Subject`: `id`, `name`, `grade`, `group`, `teacherId` (Nullable relation)

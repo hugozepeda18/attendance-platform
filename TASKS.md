@@ -202,7 +202,7 @@ Per `CLAUDE.md`, any task that adds UI or dependencies must first be added to `T
 
 ## Batch 2 — Operate with confidence
 
-- [ ] **Phase 21: Audit trail** *(S–M)* — keep every status change (who, when, from → to, note) instead of overwriting the record; show it in the student modal.
+- [x] **Phase 21: Audit trail** *(S–M)* — done 2026-10-09 — keep every status change (who, when, from → to, note) instead of overwriting the record; show it in the student modal. `RecordChange` filled by a Postgres trigger (covers every write path, bulk inserts included; existing records backfilled with their current state); "Historial (n)" under each changed day. ✔ (`override.test.ts` › Audit trail)
 - [ ] **Phase 22: Job resilience** *(S)* — replay a missed absence run when the server was down at cutoff (run once if the cutoff passed today and no run is logged); a `JobRun` table.
 - [ ] **Phase 23: Monitoring** *(M)* — structured logs, error alerts, uptime check. Platform dashboard tiles: scanners silent today, outbox failures, schools with zero scans by 09:00.
 - [ ] **Phase 24: Account hygiene** *(M)* — users change their own password; "olvidé mi contraseña" via email; login throttle stored in Postgres (multi-instance safe); optional 2FA for the platform owner.

@@ -146,6 +146,9 @@ async function main() {
   await clickText('Grupos', 'nav button');
   await type('input[type=text]', '1-A');
   await clickText('1-A', 'ul button');
+  await clickText('Historial', 'summary')
+    .then(() => evaluate(`document.querySelector('details[open]').scrollIntoView({ block: 'center' })`))
+    .catch(() => console.log('     (no record history to open)'));
   await check('student-modal');
   await clickText('Justificar falta', 'button');
   await clickText('Cita médica', 'button');
