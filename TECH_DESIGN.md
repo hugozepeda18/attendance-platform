@@ -66,6 +66,7 @@
   * `group`: String (e.g., `"A"`, `"B"`, `"C"`)
   * `guardianName`: String
   * `guardianWhatsApp`: String (E.164 format, e.g., `"+523312345678"`)
+  * `whatsappOptOut`: Boolean (default `false`; the guardian asked for no WhatsApp: attendance is recorded, no messages are queued)
   * `active`: Boolean (default `true`; withdrawn students are not scanned, not marked absent, not on the gate roster or in lists, and keep their badge until given another one)
 * **SchoolCalendarDay:** `id`, `schoolId`, `date` (unique per school), `label`, `createdAt`. A school's own day without classes.
 * **ChangeRequest:** `id`, `schoolId`, `studentId`, `date`, `fromStatus` (null = no record yet), `toStatus`, `reason`, `requestedById` (staff user), `state` (`PENDING | APPROVED | REJECTED`), `decidedById`, `decidedAt`, `createdAt`.
@@ -193,3 +194,10 @@
 * Scans older than 20 h are dropped and logged instead of sent (the server would take them as today). A batch rejected with 400 is set aside (kept in `gate.db`) so it cannot block the queue. 401/403 shows "Clave de escáner inválida".
 * Orange banner "Sin conexión, N pendientes" while uploads fail. `gate.log` rotates (3 × 1 MB). Ctrl+Q exits.
 
+## Deployment & privacy (Phase 20)
+* **One server, Docker Compose** (`docker-compose.prod.yml`): `postgres` (no published port), `api` (runs `prisma migrate deploy`, then the API), `worker` (same image, `node dist/worker.js`), `web` (Caddy: the built frontend + `/api/*` proxied to the API), `backup` (nightly `pg_dump`, 14 kept). Settings in `.env` (template `.env.production.example`); compose refuses to start without the required ones.
+* **Addresses & TLS:** a wildcard DNS record `*.<domain>` points at the server. Caddy gets a certificate per hostname on its first visit (on-demand TLS), only after `GET /internal/tls-check?domain=` (API, not proxied to the internet) confirms it is `admin.`, `api.` or an existing school. No wildcard certificate or DNS API keys needed.
+* **Same origin:** each page calls `/api` on its own host, so the API sends no CORS headers and browsers refuse other sites. Gate PCs use `https://api.<domain>/api/v1`.
+* **Headers & limits:** HSTS, CSP (`default-src 'self'`, inline styles allowed for charts), `nosniff`, `frame-ancestors 'none'`, no `Server`/`X-Powered-By`; request bodies max 1 MB at Caddy and 256 kB in the API (a 200-scan gate batch is ~30 kB). Hashed assets are cached for a year, pages revalidate.
+* **Privacy (LFPDPPP, minors' data):** the school is the *responsable*, the platform the *encargado*. Aviso de privacidad at `/privacidad.html` on every school address (linked from sign-in; draft to be reviewed by a lawyer). Guardians who do not want WhatsApp are marked in the Students tab (`whatsappOptOut`). Retention: message and scan logs (phone numbers, badge reads) deleted after 90 days by the worker, once a day; attendance records kept while the school uses the platform, deleted when the school asks or leaves.
+* **CI** (`.github/workflows/ci.yml`): backend lint + tests against a real Postgres + build, frontend build, gate self-check on Python 3.8.

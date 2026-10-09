@@ -159,3 +159,16 @@ export async function applyDeliveryStatuses(statuses: { id: string; status: stri
     });
   }
 }
+
+// Retention (privacy notice): message and scan logs hold guardian phone numbers and badge reads; they are
+// kept 90 days for delivery questions, then deleted. Attendance records stay (they are the school's record).
+// Gates never resend a scan older than 20 h, so deleting old scan events cannot reopen a replay.
+export const LOG_RETENTION_DAYS = 90;
+export async function purgeOldLogs(now = new Date()) {
+  const before = new Date(now.getTime() - LOG_RETENTION_DAYS * 24 * 60 * 60_000);
+  const [messages, scans] = await prisma.$transaction([
+    prisma.notification.deleteMany({ where: { createdAt: { lt: before } } }),
+    prisma.scanEvent.deleteMany({ where: { createdAt: { lt: before } } }),
+  ]);
+  return { messages: messages.count, scans: scans.count };
+}

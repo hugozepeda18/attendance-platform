@@ -132,6 +132,7 @@ model Student {
   guardianName      String
   guardianWhatsApp  String
   active            Boolean            @default(true) // withdrawn: no scans, no absence run, hidden from lists
+  whatsappOptOut    Boolean            @default(false) // guardian asked for no WhatsApp messages (privacy notice)
   attendanceRecords AttendanceRecord[]
   changeRequests    ChangeRequest[]
 

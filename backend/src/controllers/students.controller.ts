@@ -13,6 +13,7 @@ const fields = {
   credentialUid: z.union([z.string(), z.number()]).transform(String).pipe(z.string().trim().min(1, 'badge is required').max(128)),
   guardianName: name,
   guardianWhatsApp: whatsappSchema,
+  whatsappOptOut: z.boolean().default(false),
 };
 
 const CreateSchema = z.object(fields);

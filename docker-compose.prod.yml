@@ -1,0 +1,90 @@
+# Production: one server runs everything. Settings come from .env next to this file (copy .env.production.example).
+#   docker compose -f docker-compose.prod.yml up -d --build
+x-backend-env: &backend-env
+  NODE_ENV: production
+  DATABASE_URL: postgresql://${POSTGRES_USER:-attendance}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-attendance}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-attendance}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-attendance}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # No published port: only the containers below reach the database.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      interval: 5s
+      retries: 10
+
+  api:
+    build: ./backend
+    image: attendance-backend
+    restart: unless-stopped
+    environment:
+      <<: *backend-env
+      PORT: 4000
+      PLATFORM_DOMAIN: ${PLATFORM_DOMAIN:?set PLATFORM_DOMAIN}
+      SUPERADMIN_API_KEY: ${SUPERADMIN_API_KEY:?set SUPERADMIN_API_KEY}
+      GATE_LATEST_VERSION: ${GATE_LATEST_VERSION:-}
+      WHATSAPP_APP_SECRET: ${WHATSAPP_APP_SECRET:-}
+      WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4000/health"]
+      interval: 10s
+      retries: 12
+
+  worker:
+    image: attendance-backend
+    restart: unless-stopped
+    command: ["node", "dist/worker.js"]
+    environment:
+      <<: *backend-env
+      WHATSAPP_TOKEN: ${WHATSAPP_TOKEN:-}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+    depends_on:
+      api:
+        condition: service_healthy # the API applied the migrations
+
+  web:
+    build: ./frontend
+    restart: unless-stopped
+    environment:
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - caddy_data:/data # certificates: keep this volume
+      - caddy_config:/config
+    depends_on:
+      - api
+
+  # Nightly pg_dump into ./backups (kept 14 days). Copy that folder off the server too (RUNBOOK §9).
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-attendance}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB:-attendance}
+    volumes:
+      - ./backups:/backups
+      - ./ops:/ops:ro
+    entrypoint: ["sh", "/ops/backup-loop.sh"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

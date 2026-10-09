@@ -3,7 +3,7 @@ import request from 'supertest';
 import app from '../../src/index';
 import prisma from '../../src/lib/prisma';
 import { evaluateAbsences, processScan } from '../../src/services/attendance.service';
-import { deliverDue } from '../../src/services/outbox.service';
+import { deliverDue, purgeOldLogs } from '../../src/services/outbox.service';
 import { NotifierService, SendError, OutgoingMessage } from '../../src/services/notifier';
 import { runAbsenceTick } from '../../src/jobs/absence.job';
 import { auth, KEYS, NORTH, outbox, setMexicoCityTime, signIn } from '../helpers';
@@ -209,5 +209,34 @@ describe('WhatsApp delivery webhook', () => {
     await deliverDue(provider(), at('07:57'));
     await hook(statuses({ id: 'wamid.1', status: 'failed', errors: [{ title: 'Message undeliverable' }] }));
     expect((await outbox(prisma))[0]).toMatchObject({ status: 'FAILED', lastError: 'Message undeliverable' });
+  });
+});
+
+describe('Privacy (Phase 20)', () => {
+  it('a guardian who opted out gets no entry message and no absence notice; attendance is still recorded', async () => {
+    const s = await student('CARD-1A-01');
+    await prisma.student.update({ where: { id: s.id }, data: { whatsappOptOut: true } });
+    try {
+      await scan('CARD-1A-01');
+      setMexicoCityTime('08:30');
+      await prisma.attendanceRecord.deleteMany({ where: { studentId: { not: s.id } } });
+      await evaluateAbsences(NORTH);
+      expect(await prisma.notification.count({ where: { record: { studentId: s.id } } })).toBe(0);
+      expect(await prisma.attendanceRecord.count({ where: { studentId: s.id } })).toBe(1);
+      expect(await outbox(prisma, 'ABSENCE')).toHaveLength(29); // everyone else still gets theirs
+    } finally {
+      await prisma.student.update({ where: { id: s.id }, data: { whatsappOptOut: false } });
+    }
+  });
+
+  it('message and scan logs older than 90 days are deleted; newer ones stay', async () => {
+    await scan('CARD-1A-01');
+    await processScan(NORTH, { credentialUid: 'CARD-1A-02', eventId: 'retention-test' });
+    const old = new Date(at('07:55').getTime() - 91 * 24 * 60 * 60_000);
+    await prisma.notification.updateMany({ data: { createdAt: old } });
+    expect(await purgeOldLogs(at('08:00'))).toEqual({ messages: 2, scans: 0 });
+    await prisma.scanEvent.updateMany({ where: { eventId: 'retention-test' }, data: { createdAt: old } });
+    expect(await purgeOldLogs(at('08:00'))).toEqual({ messages: 0, scans: 1 });
+    expect(await prisma.attendanceRecord.count()).toBe(2);
   });
 });

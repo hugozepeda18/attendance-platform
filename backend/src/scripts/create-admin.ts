@@ -1,10 +1,11 @@
 // Create (or reset the password of) a platform owner account.
 //   npm run create-admin -- you@example.com "Your Name"
+//   production: docker compose -f docker-compose.prod.yml exec api node dist/scripts/create-admin.js you@example.com "Your Name"
 // A random password is generated and printed once, so it never lands in shell history.
 import 'dotenv/config';
 import { randomBytes } from 'crypto';
 import { PrismaClient } from '@prisma/client';
-import { hashPassword } from '../src/lib/tokens';
+import { hashPassword } from '../lib/tokens';
 
 const prisma = new PrismaClient();
 

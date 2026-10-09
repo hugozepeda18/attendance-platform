@@ -190,12 +190,15 @@ Per `CLAUDE.md`, any task that adds UI or dependencies must first be added to `T
   - [x] Phone check: `frontend/scripts/phone-check.mjs` (headless Chrome over the DevTools protocol, no dependencies) visits 16 screens at 390 px and fails on anything wider than the screen or any tap target under 44 px; screenshots in `scripts/phone-shots/` (git-ignored).
   - Done when ✔: the phone check passes on every screen, and search → student → "Justificar falta" → reason → save is 4 taps (the script checks the save button is ready).
 
-- [ ] **Phase 20: Production readiness** *(M)*
-  - [ ] Dockerfiles (backend, worker, frontend static), production compose, env checklist.
-  - [ ] Wildcard DNS + TLS, CORS locked to `*.<domain>`, security headers, body size limits.
-  - [ ] Automated nightly Postgres backups + a tested restore.
-  - [ ] CI: lint + tests + build on every push.
-  - [ ] Privacy (LFPDPPP; this is minors' data): aviso de privacidad, guardian consent for WhatsApp, data-retention rule.
+- [ ] **Phase 20: Production readiness** *(M)* — code done 2026-10-08; open: server, domain, lawyer review (owner)
+  - [x] Dockerfiles (backend image for API + worker, frontend built into Caddy), `docker-compose.prod.yml`, `.env.production.example` (required settings refuse to start when missing). Fixed `npm run build`/`start` (output was `dist/src/`).
+  - [x] TLS: wildcard DNS + Caddy on-demand certificates, approved by `/internal/tls-check` (only real schools, admin, api). No CORS needed: pages and API share each host.
+  - [x] Security headers (HSTS, CSP, nosniff, frame-ancestors none), body limits (1 MB Caddy, 256 kB API), no `X-Powered-By`.
+  - [x] Nightly `pg_dump` (14 kept) by the `backup` service; `ops/restore-check.sh` restores a dump into a scratch database and counts rows. Tested locally: backup → restore OK.
+  - [x] CI: backend lint + tests (real Postgres) + build, frontend build, gate self-check (Python 3.8).
+  - [x] Privacy: aviso de privacidad draft (`frontend/public/privacidad.html`, linked from sign-in); WhatsApp opt-out per guardian; retention: message + scan logs deleted after 90 days.
+  - [ ] **Owner:** have a lawyer review the aviso and fill in the [BRACKETS]; add the consent line to the schools' enrollment form (RUNBOOK §9); rent the server, buy the domain, deploy (RUNBOOK §9); keep a copy of `backups/` off the server.
+  - Verified: production stack built and run locally (plain HTTP override): school created through Caddy, login, headers, 413 on a 2 MB body, `/internal` not reachable from outside, worker + retention log, backup + restore, restart keeps data and re-running migrations is a no-op.
 
 ## Batch 2 — Operate with confidence
 

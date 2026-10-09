@@ -145,6 +145,7 @@ export interface RosterStudent {
   credentialUid: string;
   guardianName: string;
   guardianWhatsApp: string;
+  whatsappOptOut: boolean; // guardian asked for no WhatsApp messages
   active: boolean;
 }
 

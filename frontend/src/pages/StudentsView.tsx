@@ -9,7 +9,7 @@ interface Props {
 
 const inputClass = 'px-3 min-h-[44px] rounded-lg border border-slate-300 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
 const button = 'min-h-[44px] px-4 rounded-lg text-sm font-medium';
-const EMPTY: StudentInput = { firstName: '', lastName: '', grade: 1, group: 'A', credentialUid: '', guardianName: '', guardianWhatsApp: '+52' };
+const EMPTY: StudentInput = { firstName: '', lastName: '', grade: 1, group: 'A', credentialUid: '', guardianName: '', guardianWhatsApp: '+52', whatsappOptOut: false };
 
 // Principal: add, edit and withdraw students. Withdrawn students stay listed so they can come back.
 export default function StudentsView({ onChanged }: Props) {
@@ -45,8 +45,8 @@ export default function StudentsView({ onChanged }: Props) {
 
   async function save(e: FormEvent) {
     e.preventDefault();
-    const { firstName, lastName, grade, group, credentialUid, guardianName, guardianWhatsApp } = form;
-    const input = { firstName, lastName, grade, group, credentialUid, guardianName, guardianWhatsApp };
+    const { firstName, lastName, grade, group, credentialUid, guardianName, guardianWhatsApp, whatsappOptOut } = form;
+    const input = { firstName, lastName, grade, group, credentialUid, guardianName, guardianWhatsApp, whatsappOptOut };
     const ok = await run(
       () => (editing === 'new' ? createStudent(input) : updateStudent(editing!, input)),
     );
@@ -87,6 +87,10 @@ export default function StudentsView({ onChanged }: Props) {
           <input required placeholder="Nombre del tutor" aria-label="Nombre del tutor" className={inputClass} value={form.guardianName} onChange={(e) => set({ guardianName: e.target.value })} />
           <input required type="tel" pattern="\+\d{10,15}" placeholder="+523312345678" aria-label="WhatsApp del tutor" className={inputClass}
             value={form.guardianWhatsApp} onChange={(e) => set({ guardianWhatsApp: e.target.value.replace(/[\s-]/g, '') })} />
+          <label className="flex items-center gap-3 min-h-[44px] text-sm text-slate-700 sm:col-span-2">
+            <input type="checkbox" className="w-5 h-5" checked={form.whatsappOptOut} onChange={(e) => set({ whatsappOptOut: e.target.checked })} />
+            El tutor no desea avisos por WhatsApp (se registra la asistencia, sin mensajes)
+          </label>
           <div className="flex gap-2 lg:col-span-2">
             <button type="submit" className={`${button} flex-1 bg-blue-600 text-white hover:bg-blue-700`}>
               {editing === 'new' ? T.add : T.save}
@@ -105,7 +109,7 @@ export default function StudentsView({ onChanged }: Props) {
               <div className="min-w-0">
                 <p className="font-medium text-slate-800">{s.lastName}, {s.firstName}{!s.active && ' (baja)'}</p>
                 <p className="text-xs text-slate-400 font-mono">{s.credentialUid}</p>
-                <p className="text-sm text-slate-500">{s.guardianName} · {s.guardianWhatsApp}</p>
+                <p className="text-sm text-slate-500">{s.guardianName} · {s.guardianWhatsApp}{s.whatsappOptOut && ' · sin WhatsApp'}</p>
               </div>
               <span className="text-sm font-medium text-slate-600 shrink-0">{s.grade}-{s.group}</span>
             </div>

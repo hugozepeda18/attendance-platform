@@ -24,6 +24,7 @@ export interface StudentFields {
   credentialUid: string;
   guardianName: string;
   guardianWhatsApp: string;
+  whatsappOptOut: boolean;
   active: boolean;
 }
 
@@ -36,6 +37,7 @@ const view = (s: Student) => ({
   credentialUid: s.credentialUid,
   guardianName: s.guardianName,
   guardianWhatsApp: s.guardianWhatsApp,
+  whatsappOptOut: s.whatsappOptOut,
   active: s.active,
 });
 

@@ -144,7 +144,8 @@ async function recordArrival(
   // No correction messages: if the guardian already got the absence notice, stay silent.
   // Stale entries (an old offline queue) are not announced either. The message is written with the record.
   const absenceNoticeSent = existing?.status === AttendanceStatus.ABSENT && existing.updatedByRole === UpdatedByRole.SYSTEM;
-  const message = absenceNoticeSent || Date.now() - at.getTime() > ENTRY_MAX_AGE_MS ? null : entryMessage(student, status, at, config.timezone);
+  const silent = absenceNoticeSent || student.whatsappOptOut || Date.now() - at.getTime() > ENTRY_MAX_AGE_MS;
+  const message = silent ? null : entryMessage(student, status, at, config.timezone);
 
   if (existing) {
     // Excused / marked absent, but a real arrival inside the window wins (a queued gate scan
@@ -200,7 +201,7 @@ export async function evaluateAbsences(
       date: today,
       status: AttendanceStatus.ABSENT,
       updatedByRole: UpdatedByRole.SYSTEM,
-      notifications: { create: absenceMessage(student, today) },
+      ...(!student.whatsappOptOut && { notifications: { create: absenceMessage(student, today) } }), // opted out: record only
     });
   }
 

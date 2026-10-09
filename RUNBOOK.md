@@ -179,7 +179,7 @@ cd backend && npx prisma studio
 ```
 **Every July: load the next SEP calendar.** SEP publishes the next school year's calendar in the DOF (an "ACUERDO … por el que se establecen los calendarios escolares para el ciclo lectivo …"). Add it to `backend/src/calendar/sep.ts` (first and last day of classes, every weekday off, the official number of days and the DOF link), run `npm test` (it recounts the official days) and deploy. The admin schools list shows a warning 45 days before the loaded calendar ends; outside a loaded school year nobody is marked absent.
 
-**Production:** point a wildcard DNS record (`*.<your domain>`) and a wildcard TLS certificate at the frontend; set `SUPERADMIN_API_KEY` to a long random value (`openssl rand -base64 32`), never run the seed (it refuses when `NODE_ENV=production`), and change the default Postgres credentials in `docker-compose.yml`.
+**Production:** see §9. Never run the seed there (it refuses when `NODE_ENV=production`).
 
 ## 8. WhatsApp (Meta Cloud API), once for the platform
 1. Create a Meta Business account (business.facebook.com) and verify the business (RFC / acta, takes days).
@@ -191,3 +191,26 @@ cd backend && npx prisma studio
 7. Check: scan a test badge; the worker log shows the send, and the student's records list goes sent → delivered → read.
 
 Failed messages: `npx prisma studio` → `Notification`, `status = FAILED`, `lastError` says why (often a guardian number that is not on WhatsApp: fix it in the Students tab).
+
+## 9. Production server
+**Once:**
+1. A Linux server (2 GB RAM is plenty to start) with Docker installed; open ports 80 and 443.
+2. Domain with two labels (e.g. `asistencia.mx`; see `.env.production.example`). DNS: an `A` record for `*.asistencia.mx` (and `asistencia.mx` if you want a landing page later) → the server's IP.
+3. On the server: `git clone` the repo, `cp .env.production.example .env`, fill it in (`openssl rand -base64 32` for the password and the key).
+4. `docker compose -f docker-compose.prod.yml up -d --build`. The API applies the migrations on start.
+5. Create your owner account (prints a random password once):
+   `docker compose -f docker-compose.prod.yml exec api node dist/scripts/create-admin.js you@example.com "Your Name"`
+6. Open `https://admin.<domain>`: the first visit to each address takes a few seconds while its certificate is issued.
+
+**Updating:** `git pull && docker compose -f docker-compose.prod.yml up -d --build` (migrations apply on start; a few seconds of downtime).
+
+**Logs:** `docker compose -f docker-compose.prod.yml logs -f api worker` (one line per request; the worker logs each send and failure).
+
+**Backups:** a dump lands in `./backups` every night at ~03:00 UTC, 14 are kept. Copy the folder off the server (e.g. a nightly `rsync` or `rclone` to another machine or cloud storage): a backup on the same disk does not survive the disk. Once a month, prove it restores:
+`sh ops/restore-check.sh backups/attendance-<date>.dump` → prints the row counts and `restore OK`.
+Real restore (data loss): stop `api` and `worker`, `docker compose -f docker-compose.prod.yml exec -T postgres pg_restore -U attendance -d attendance --clean --if-exists --no-owner < backups/<file>.dump`, start them again.
+
+**Privacy:** each school is responsible for its students' data; we process it for them. Before the first school goes live, have a lawyer review `frontend/public/privacidad.html` and fill in the [BRACKETS]. Ask each school to add this line to its enrollment / re-enrollment form:
+> Autorizo que la escuela registre la entrada de mi hijo(a) con su credencial y me envíe avisos de entrada y faltas por WhatsApp al número indicado, conforme al aviso de privacidad publicado en la página de la escuela.
+
+Guardians who do not want WhatsApp: tick "El tutor no desea avisos por WhatsApp" on the student (Students tab). A school that leaves: export what they need, then delete its data (owner, by database).

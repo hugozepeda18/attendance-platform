@@ -114,6 +114,7 @@ export default function SignIn({ onSignedIn, admin = false }: Props) {
             </button>
           </form>
         )}
+        <a href="/privacidad.html" className="block text-center text-xs text-slate-400 hover:text-slate-600 py-2">Aviso de privacidad</a>
       </div>
     </div>
   );
